@@ -61,7 +61,6 @@ export default function WalletScreen() {
   const handleRestore = () => {
     const message = 'No previous purchases found for this device (simulated).';
     if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-alert
       alert(message);
     } else {
       Alert.alert('Restore Purchases', message);

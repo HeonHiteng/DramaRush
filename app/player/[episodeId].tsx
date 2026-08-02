@@ -55,7 +55,6 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
   const handleShare = () => {
     const message = `Check out "${series.title}" on DramaRush (simulated share).`;
     if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-alert
       alert(message);
     } else {
       Alert.alert('Share', message);
@@ -65,7 +64,6 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
   const handleRestorePurchases = () => {
     const message = 'No previous purchases found for this device (simulated).';
     if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-alert
       alert(message);
     } else {
       Alert.alert('Restore Purchases', message);

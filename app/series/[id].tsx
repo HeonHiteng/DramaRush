@@ -41,7 +41,6 @@ export default function SeriesDetailScreen() {
 
   const handleShare = () => {
     if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-alert
       alert(`Share link copied for "${series.title}" (simulated).`);
     } else {
       Alert.alert('Share', `Share link copied for "${series.title}" (simulated).`);

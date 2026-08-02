@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "dramarush-web",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["expo", "start", "--web"],
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "C:\\Users\\kelvi\\Claude Code\\Login Testing\\.tools\\start-web.cmd"],
       "port": 8081
     }
   ]

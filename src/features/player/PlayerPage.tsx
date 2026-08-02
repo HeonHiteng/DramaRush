@@ -166,15 +166,10 @@ export function PlayerPage({
   };
 
   return (
-    <Pressable
-      style={{ width, height, backgroundColor: colors.black }}
-      onPress={() => setControlsVisible((v) => !v)}
-      accessibilityRole="button"
-      accessibilityLabel={isPlaying ? 'Pause video' : 'Play video'}
-    >
+    <View style={{ width, height, backgroundColor: colors.black }}>
       {isUnlocked ? (
         <VideoView
-          style={StyleSheet.absoluteFill}
+          style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
           player={player}
           contentFit="cover"
           nativeControls={false}
@@ -184,8 +179,15 @@ export function PlayerPage({
         <LockedPoster episodeNumber={episode.number} episodeTitle={episode.title} />
       )}
 
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={() => setControlsVisible((v) => !v)}
+        accessibilityRole="button"
+        accessibilityLabel={isPlaying ? 'Pause video' : 'Play video'}
+      />
+
       {isUnlocked && subtitlesEnabled && (
-        <View pointerEvents="none" style={[styles.subtitleWrap, { bottom: height * 0.18 }]}>
+        <View style={[styles.subtitleWrap, { bottom: height * 0.18, pointerEvents: 'none' }]}>
           <Text style={styles.subtitleText}>[ Prototype subtitles placeholder ]</Text>
         </View>
       )}
@@ -218,7 +220,7 @@ export function PlayerPage({
           onCancelCountdown={() => setNextCountdown(null)}
         />
       )}
-    </Pressable>
+    </View>
   );
 }
 

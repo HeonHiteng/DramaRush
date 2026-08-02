@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# local portable toolchain (e.g. bundled Node runtime for dev server)
+.tools/
+
 # Expo
 .expo/
 dist/

@@ -4,7 +4,6 @@ import {
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -49,12 +48,7 @@ export function HeroCarousel({ series }: HeroCarouselProps) {
         onScroll={onScroll}
         scrollEventThrottle={16}
         renderItem={({ item }: { item: Series }) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${item.title}`}
-            onPress={() => router.push(`/series/${item.id}`)}
-            style={styles.card}
-          >
+          <View style={styles.card}>
             <LinearGradient
               colors={[item.bannerColorFrom, item.bannerColorTo]}
               start={{ x: 0, y: 0 }}
@@ -83,7 +77,7 @@ export function HeroCarousel({ series }: HeroCarouselProps) {
                 />
               </View>
             </LinearGradient>
-          </Pressable>
+          </View>
         )}
       />
       <View style={styles.dots}>

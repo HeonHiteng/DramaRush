@@ -7,6 +7,7 @@
     "@expo/vector-icons": "^15.0.2",
     "@hookform/resolvers": "^5.5.7",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "babel-preset-expo": "~57.0.0",
     "expo": "~57.0.9",
     "expo-blur": "~57.0.2",
     "expo-constants": "~57.0.8",
@@ -53,6 +54,10 @@
   "private": true,
   "jest": {
     "preset": "jest-expo",
+    "moduleNameMapper": {
+      "^@react-native-async-storage/async-storage$": "@react-native-async-storage/async-storage/jest/async-storage-mock",
+      "^@/(.*)$": "<rootDir>/src/$1"
+    },
     "transformIgnorePatterns": [
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg))"
     ]

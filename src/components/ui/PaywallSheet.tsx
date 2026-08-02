@@ -122,22 +122,24 @@ export function PaywallSheet({
             </View>
           )}
 
-          <AppButton
-            label={`Unlock for ${episode.coinPrice ?? 0} ${BRAND.currency.coinSymbol}`}
-            onPress={handleUnlock}
-            variant="primary"
-            fullWidth
-            style={styles.primaryAction}
-          />
+          {episode.access === 'coin' && (
+            <AppButton
+              label={`Unlock for ${episode.coinPrice ?? 0} ${BRAND.currency.coinSymbol}`}
+              onPress={handleUnlock}
+              variant="primary"
+              fullWidth
+              style={styles.primaryAction}
+            />
+          )}
 
           {episode.access === 'ad_unlock' && (
             <AppButton
               label="Watch Advertisement (Free)"
               onPress={onWatchAd}
-              variant="secondary"
+              variant="primary"
               fullWidth
-              icon={<Ionicons name="play-circle-outline" size={18} color={colors.textPrimary} />}
-              style={styles.secondaryAction}
+              icon={<Ionicons name="play-circle-outline" size={18} color={colors.textInverse} />}
+              style={styles.primaryAction}
             />
           )}
 
@@ -148,7 +150,7 @@ export function PaywallSheet({
           <AppButton label="Restore Purchases" onPress={onRestorePurchases} variant="ghost" fullWidth />
           {isSubscriber && (
             <Text style={styles.memberHint}>
-              You're a member — some episodes are already included with your plan.
+              You&apos;re a member — some episodes are already included with your plan.
             </Text>
           )}
         </>

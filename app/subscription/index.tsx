@@ -58,7 +58,6 @@ export default function SubscriptionScreen() {
   const handleRestore = () => {
     const message = 'No previous subscription found for this device (simulated).';
     if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-alert
       alert(message);
     } else {
       Alert.alert('Restore Purchases', message);
@@ -73,7 +72,7 @@ export default function SubscriptionScreen() {
           <View style={styles.successCircle}>
             <Ionicons name="diamond" size={36} color={colors.textInverse} />
           </View>
-          <Text style={styles.successTitle}>You're a {BRAND.name} member!</Text>
+          <Text style={styles.successTitle}>You&apos;re a {BRAND.name} member!</Text>
           <Text style={styles.successBody}>
             {subscription.planId === 'annual' ? 'Annual' : 'Monthly'} membership is active
             {subscription.renewsAt ? ` and renews on ${formatDateLong(subscription.renewsAt)}.` : '.'}

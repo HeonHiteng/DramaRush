@@ -10,19 +10,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SERIES, GENRES } from '@/data';
 import { useSearchStore } from '@/store';
 import type { Series } from '@/types';
+import { matchesQuery } from '@/utils/search';
 
 const TRENDING_SEARCHES = ['Crimson Contract', 'Revenge', 'Fantasy romance', 'Ever After Glitch', 'Workplace drama'];
-
-function matchesQuery(series: Series, query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return false;
-  return (
-    series.title.toLowerCase().includes(q) ||
-    series.genres.some((g) => g.toLowerCase().includes(q)) ||
-    series.cast.some((c) => c.name.toLowerCase().includes(q)) ||
-    series.synopsis.toLowerCase().includes(q)
-  );
-}
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('');

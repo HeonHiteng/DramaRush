@@ -43,7 +43,7 @@ export default function ProfileScreen() {
     await resetPrototype();
     setResetting(false);
     setConfirmVisible(false);
-    router.replace('/');
+    router.replace('/onboarding');
   };
 
   const confirmSignOut = () => {

@@ -64,15 +64,15 @@ export function VideoControls({
   const progress = durationSec > 0 ? positionSec / durationSec : 0;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    <View style={[StyleSheet.absoluteFill, styles.boxNone]}>
       {buffering && (
-        <View style={styles.bufferingWrap} pointerEvents="none">
+        <View style={[styles.bufferingWrap, styles.eventsNone]}>
           <View style={styles.bufferingRing} />
         </View>
       )}
 
       {!isPlaying && !buffering && visible && (
-        <View style={styles.centerPlayWrap} pointerEvents="none">
+        <View style={[styles.centerPlayWrap, styles.eventsNone]}>
           <View style={styles.centerPlayCircle}>
             <Ionicons name="play" size={30} color={colors.white} />
           </View>
@@ -201,6 +201,8 @@ function SeekBar({ progress, onSeek }: { progress: number; onSeek: (ratio: numbe
 }
 
 const styles = StyleSheet.create({
+  boxNone: { pointerEvents: 'box-none' },
+  eventsNone: { pointerEvents: 'none' },
   bufferingWrap: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
