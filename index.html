@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login</title>
+<style>
+  :root {
+    --bg-a: #f5f3ff;
+    --bg-b: #eef2ff;
+    --card-bg: rgba(255, 255, 255, 0.72);
+    --card-border: rgba(255, 255, 255, 0.6);
+    --text: #1a1a2e;
+    --muted: #8a8aa3;
+    --border: #e3e1f0;
+    --accent: #6d5bd0;
+    --accent-2: #8a6fe8;
+    --accent-text: #ffffff;
+    --error: #e0526b;
+    --shadow: 0 30px 60px -20px rgba(76, 60, 150, 0.25), 0 10px 20px -10px rgba(76, 60, 150, 0.15);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: radial-gradient(circle at 15% 20%, var(--bg-a), transparent 55%),
+                radial-gradient(circle at 85% 80%, var(--bg-b), transparent 55%),
+                linear-gradient(160deg, #faf9ff 0%, #eef0fb 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  .blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.35;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .blob-1 {
+    width: 340px; height: 340px;
+    top: -80px; left: -100px;
+    background: linear-gradient(135deg, #a78bfa, #818cf8);
+  }
+  .blob-2 {
+    width: 300px; height: 300px;
+    bottom: -100px; right: -80px;
+    background: linear-gradient(135deg, #f0abfc, #93c5fd);
+  }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 380px;
+    padding: 44px 40px 36px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    animation: rise 0.5s ease;
+  }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .mark {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 8px 20px -6px rgba(109, 91, 208, 0.55);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mark svg { width: 22px; height: 22px; }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+  }
+
+  .subtitle {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin: 0 0 30px;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+    opacity: 0.75;
+  }
+
+  .input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .input-wrap svg {
+    position: absolute;
+    left: 13px;
+    width: 16px;
+    height: 16px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  input {
+    width: 100%;
+    border: 1.5px solid var(--border);
+    border-radius: 11px;
+    padding: 11px 14px 11px 38px;
+    font-size: 14px;
+    font-family: inherit;
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  }
+
+  input::placeholder {
+    color: #b7b6c9;
+  }
+
+  input:focus {
+    border-color: var(--accent);
+    background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(109, 91, 208, 0.14);
+  }
+
+  .code-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .code-row .input-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .code-btn {
+    flex-shrink: 0;
+    border: 1.5px solid var(--border);
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--accent);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 0 14px;
+    border-radius: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  }
+
+  .code-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: #ffffff;
+  }
+
+  .code-btn:disabled {
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .submit-btn {
+    margin-top: 10px;
+    padding: 13px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: var(--accent-text);
+    font-size: 14.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    box-shadow: 0 10px 24px -8px rgba(109, 91, 208, 0.55);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  }
+
+  .submit-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px -8px rgba(109, 91, 208, 0.6);
+  }
+
+  .submit-btn:active {
+    transform: translateY(0);
+    opacity: 0.92;
+  }
+
+  .error {
+    font-size: 12px;
+    color: var(--error);
+    min-height: 14px;
+    margin: -6px 2px 0;
+  }
+
+  .status {
+    font-size: 12.5px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 20px;
+    min-height: 14px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-a: #241b3d;
+      --bg-b: #1a2340;
+      --card-bg: rgba(24, 22, 38, 0.65);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text: #f2f1fa;
+      --muted: #8c8aa8;
+      --border: #33314a;
+      --accent: #9d8cf0;
+      --accent-2: #b79cf5;
+      --accent-text: #14101f;
+      --shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.55), 0 10px 20px -10px rgba(0, 0, 0, 0.4);
+    }
+    body {
+      background: radial-gradient(circle at 15% 20%, var(--bg-a), transparent 55%),
+                  radial-gradient(circle at 85% 80%, var(--bg-b), transparent 55%),
+                  linear-gradient(160deg, #100c1c 0%, #171426 100%);
+    }
+    input { background: rgba(255, 255, 255, 0.04); }
+    input:focus { background: rgba(255, 255, 255, 0.07); }
+    input::placeholder { color: #56546e; }
+    .code-btn { background: rgba(255, 255, 255, 0.04); }
+    .code-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
+  }
+</style>
+</head>
+<body>
+
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <div class="card">
+    <div class="mark">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L3 7v6c0 5 3.8 8.7 9 9 5.2-.3 9-4 9-9V7l-9-5z" fill="white" fill-opacity="0.95"/>
+        <path d="M9 12l2 2 4-4" stroke="#6d5bd0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <h1>Welcome back</h1>
+    <p class="subtitle">Sign in to your account to continue</p>
+
+    <form id="loginForm" novalidate>
+      <div class="field">
+        <label for="email">Email</label>
+        <div class="input-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z" opacity="0"/><path d="M4 6h16v12H4z"/><path d="M4 6l8 7 8-7"/></svg>
+          <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="input-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="code">Verification Code</label>
+        <div class="code-row">
+          <div class="input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
+            <input type="text" id="code" name="code" placeholder="6-digit code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required>
+          </div>
+          <button type="button" class="code-btn" id="sendCodeBtn">Send Code</button>
+        </div>
+      </div>
+
+      <p class="error" id="errorMsg"></p>
+
+      <button type="submit" class="submit-btn">Log In</button>
+    </form>
+
+    <p class="status" id="statusMsg"></p>
+  </div>
+
+<script>
+  const form = document.getElementById('loginForm');
+  const errorMsg = document.getElementById('errorMsg');
+  const statusMsg = document.getElementById('statusMsg');
+  const sendCodeBtn = document.getElementById('sendCodeBtn');
+  const emailInput = document.getElementById('email');
+  const codeInput = document.getElementById('code');
+
+  let cooldown = 0;
+  let timer = null;
+
+  sendCodeBtn.addEventListener('click', () => {
+    if (!emailInput.value || !emailInput.checkValidity()) {
+      errorMsg.textContent = 'Please enter a valid email address first';
+      emailInput.focus();
+      return;
+    }
+    errorMsg.textContent = '';
+    statusMsg.textContent = `Verification code sent to ${emailInput.value}`;
+
+    cooldown = 60;
+    sendCodeBtn.disabled = true;
+    sendCodeBtn.textContent = `Resend (${cooldown}s)`;
+
+    timer = setInterval(() => {
+      cooldown -= 1;
+      if (cooldown <= 0) {
+        clearInterval(timer);
+        sendCodeBtn.disabled = false;
+        sendCodeBtn.textContent = 'Send Code';
+      } else {
+        sendCodeBtn.textContent = `Resend (${cooldown}s)`;
+      }
+    }, 1000);
+  });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    errorMsg.textContent = '';
+
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const code = codeInput.value.trim();
+
+    if (!email || !password || !code) {
+      errorMsg.textContent = 'Please fill in all fields';
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      errorMsg.textContent = 'Verification code must be 6 digits';
+      return;
+    }
+
+    statusMsg.textContent = 'Logging in...';
+    setTimeout(() => {
+      statusMsg.textContent = `Submitted: ${email}`;
+    }, 600);
+  });
+</script>
+
+</body>
+</html>
