@@ -1,3 +1,6 @@
+jest.mock('@/lib/supabase', () => require('../testUtils/supabaseMock'));
+
+import { __reset } from '../testUtils/supabaseMock';
 import { resetPrototype } from '@/store/resetPrototype';
 import { useUserStore } from '@/store/userStore';
 import { useWalletStore } from '@/store/walletStore';
@@ -7,19 +10,19 @@ import { useSearchStore } from '@/store/searchStore';
 import { STARTING_COIN_BALANCE } from '@/data/wallet';
 
 describe('prototype reset behavior', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    __reset();
     useUserStore.setState({
       user: { id: 'u1', displayName: 'Test User', provider: 'guest', avatarSeed: 'x', createdAt: new Date().toISOString() },
       hasOnboarded: true,
     });
-    useWalletStore.setState({ balance: 9999, transactions: [{ id: 't1', type: 'bonus', label: 'x', amount: 500, timestamp: new Date().toISOString() }] });
-    useSubscriptionStore.setState({ isActive: true, planId: 'annual', startedAt: new Date().toISOString(), renewsAt: new Date().toISOString() });
-    useLibraryStore.setState({
-      favoriteSeriesIds: ['crimson-contract'],
-      unlockedEpisodeIds: ['crimson-contract-ep4'],
-      history: [{ episodeId: 'crimson-contract-ep1', seriesId: 'crimson-contract', watchedAt: new Date().toISOString() }],
-      progress: { 'crimson-contract-ep1': { positionSec: 100, durationSec: 600, completed: false, updatedAt: new Date().toISOString() } },
-    });
+
+    await useLibraryStore.getState().toggleFavorite('series-1');
+    await useLibraryStore.getState().unlockEpisodeWithCoins('ep-coin');
+    useLibraryStore.getState().recordHistory('ep-free', 'series-1');
+    useLibraryStore.getState().setProgress('ep-free', 100, 600);
+
+    await useSubscriptionStore.getState().activate('annual');
     useSearchStore.setState({ recentSearches: ['crimson'] });
   });
 

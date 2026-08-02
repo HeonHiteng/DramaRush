@@ -7,8 +7,9 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { GenreChip } from '@/components/ui/GenreChip';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { SERIES, GENRES } from '@/data';
+import { GENRES } from '@/data';
 import { useSearchStore } from '@/store';
+import { useSeries } from '@/services/content';
 import type { Series } from '@/types';
 import { matchesQuery } from '@/utils/search';
 
@@ -20,6 +21,7 @@ export default function SearchScreen() {
   const recentSearches = useSearchStore((s) => s.recentSearches);
   const addRecent = useSearchStore((s) => s.addRecent);
   const clearRecent = useSearchStore((s) => s.clearRecent);
+  const { data: series } = useSeries();
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 280);
@@ -27,9 +29,9 @@ export default function SearchScreen() {
   }, [query]);
 
   const results = useMemo(() => {
-    if (!debouncedQuery.trim()) return [];
-    return SERIES.filter((s) => matchesQuery(s, debouncedQuery));
-  }, [debouncedQuery]);
+    if (!debouncedQuery.trim() || !series) return [];
+    return series.filter((s) => matchesQuery(s, debouncedQuery));
+  }, [debouncedQuery, series]);
 
   const commitSearch = (text: string) => {
     setQuery(text);
@@ -106,7 +108,7 @@ export default function SearchScreen() {
 
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Suggested Titles</Text>
-                {SERIES.slice(0, 4).map((s) => (
+                {(series ?? []).slice(0, 4).map((s) => (
                   <SuggestedRow key={s.id} series={s} onPress={() => router.push(`/series/${s.id}`)} />
                 ))}
               </View>

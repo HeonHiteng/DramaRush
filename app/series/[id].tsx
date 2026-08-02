@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -8,16 +8,27 @@ import { StackHeader } from '@/components/ui/StackHeader';
 import { AppButton } from '@/components/ui/AppButton';
 import { EpisodeRow, SeriesRail } from '@/components/media';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { getEpisodesForSeries, getSeriesById, getSimilarSeries } from '@/data';
+import { getSimilarSeries } from '@/data';
+import { useSeries, useSeriesById, useEpisodesForSeries } from '@/services/content';
 import { useLibraryStore } from '@/store';
 
 export default function SeriesDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const series = getSeriesById(id);
+  const { data: series, isLoading: seriesLoading } = useSeriesById(id);
+  const { data: episodes, isLoading: episodesLoading } = useEpisodesForSeries(id);
+  const { data: allSeries } = useSeries();
   const isFavorite = useLibraryStore((s) => (series ? s.isFavorite(series.id) : false));
   const toggleFavorite = useLibraryStore((s) => s.toggleFavorite);
   const unlockedEpisodeIds = useLibraryStore((s) => s.unlockedEpisodeIds);
   const progress = useLibraryStore((s) => s.progress);
+
+  if (seriesLoading || episodesLoading) {
+    return (
+      <View style={[styles.root, styles.centered]}>
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
 
   if (!series) {
     return (
@@ -28,8 +39,7 @@ export default function SeriesDetailScreen() {
     );
   }
 
-  const episodes = getEpisodesForSeries(series.id);
-  const similar = getSimilarSeries(series.id);
+  const similar = getSimilarSeries(allSeries ?? [], series.id);
 
   const nextEpisode =
     episodes.find((ep) => {
@@ -97,7 +107,7 @@ export default function SeriesDetailScreen() {
           <View style={styles.actionsRow}>
             <AppButton
               label={hasStarted ? 'Continue Watching' : 'Start Watching'}
-              onPress={() => router.push(`/player/${nextEpisode.id}`)}
+              onPress={() => nextEpisode && router.push(`/player/${nextEpisode.id}`)}
               variant="primary"
               style={styles.mainAction}
             />
@@ -140,6 +150,7 @@ export default function SeriesDetailScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  centered: { alignItems: 'center', justifyContent: 'center' },
   scrollContent: { paddingBottom: spacing.xl },
   bannerWrap: { height: 280 },
   banner: { flex: 1 },

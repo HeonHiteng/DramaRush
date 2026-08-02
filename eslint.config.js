@@ -18,4 +18,14 @@ module.exports = defineConfig([
       "react-hooks/set-state-in-effect": "off",
     },
   },
+  {
+    // Tests use `jest.mock('@/lib/supabase', () => require(...))` above the
+    // ES imports — the standard pattern for module-level Jest mocks — which
+    // trips these two otherwise-useful style rules.
+    files: ["src/__tests__/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+      "import/first": "off",
+    },
+  },
 ]);

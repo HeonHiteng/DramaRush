@@ -7,8 +7,10 @@ import { Screen } from '@/components/ui/Screen';
 import { GenreChip } from '@/components/ui/GenreChip';
 import { PosterCard } from '@/components/media';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { EPISODES, SERIES, GENRES } from '@/data';
-import type { Series } from '@/types';
+import { GridSkeleton } from '@/components/ui/LoadingSkeleton';
+import { GENRES } from '@/data';
+import { useSeries, useEpisodes } from '@/services/content';
+import type { Episode, Series } from '@/types';
 
 type AccessFilter = 'all' | 'free' | 'premium';
 type StatusFilter = 'all' | 'ongoing' | 'completed';
@@ -21,36 +23,41 @@ const SORT_LABELS: Record<SortMode, string> = {
 };
 const SORT_ORDER: SortMode[] = ['popularity', 'rating', 'newest'];
 
-const LANGUAGES = Array.from(new Set(SERIES.map((s) => s.language)));
-
-const SUBSCRIBER_SERIES_IDS = new Set(
-  EPISODES.filter((e) => e.access === 'subscriber').map((e) => e.seriesId)
-);
-
-function isPremiumSeries(series: Series): boolean {
-  return SUBSCRIBER_SERIES_IDS.has(series.id);
-}
-
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CONTAINER_WIDTH = Math.min(SCREEN_WIDTH, 430);
 const GRID_CARD_WIDTH = (CONTAINER_WIDTH - spacing.lg * 2 - spacing.md) / 2;
 const GRID_CARD_HEIGHT = GRID_CARD_WIDTH * 1.5;
 
+const EMPTY_SERIES: Series[] = [];
+const EMPTY_EPISODES: Episode[] = [];
+
 export default function DiscoverScreen() {
+  const { data: series, isLoading: seriesLoading } = useSeries();
+  const { data: episodes, isLoading: episodesLoading } = useEpisodes();
   const [genre, setGenre] = useState<string | null>(null);
   const [access, setAccess] = useState<AccessFilter>('all');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [language, setLanguage] = useState<string | null>(null);
   const [sort, setSort] = useState<SortMode>('popularity');
 
+  const loading = seriesLoading || episodesLoading;
+  const allSeries = series ?? EMPTY_SERIES;
+  const allEpisodes = episodes ?? EMPTY_EPISODES;
+
+  const languages = useMemo(() => Array.from(new Set(allSeries.map((s) => s.language))), [allSeries]);
+  const premiumSeriesIds = useMemo(
+    () => new Set(allEpisodes.filter((e) => e.access === 'subscriber').map((e) => e.seriesId)),
+    [allEpisodes]
+  );
+
   const results = useMemo(() => {
-    let list = [...SERIES];
+    let list = [...allSeries];
 
     if (genre) list = list.filter((s) => s.genres.includes(genre as Series['genres'][number]));
     if (status !== 'all') list = list.filter((s) => s.status === status);
     if (language) list = list.filter((s) => s.language === language);
     if (access !== 'all') {
-      list = list.filter((s) => (access === 'premium' ? isPremiumSeries(s) : !isPremiumSeries(s)));
+      list = list.filter((s) => (access === 'premium' ? premiumSeriesIds.has(s.id) : !premiumSeriesIds.has(s.id)));
     }
 
     switch (sort) {
@@ -65,7 +72,7 @@ export default function DiscoverScreen() {
     }
 
     return list;
-  }, [genre, access, status, language, sort]);
+  }, [allSeries, genre, access, status, language, sort, premiumSeriesIds]);
 
   const cycleSort = () => {
     const idx = SORT_ORDER.indexOf(sort);
@@ -95,20 +102,22 @@ export default function DiscoverScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chipRowContent}>
         <GenreChip label="Any Language" selected={language === null} onPress={() => setLanguage(null)} />
-        {LANGUAGES.map((l) => (
+        {languages.map((l) => (
           <GenreChip key={l} label={l} selected={language === l} onPress={() => setLanguage(language === l ? null : l)} />
         ))}
       </ScrollView>
 
       <View style={styles.sortRow}>
-        <Text style={styles.resultCount}>{results.length} series</Text>
+        <Text style={styles.resultCount}>{loading ? '…' : `${results.length} series`}</Text>
         <Pressable onPress={cycleSort} style={styles.sortButton} accessibilityRole="button" accessibilityLabel={`Sort by ${SORT_LABELS[sort]}`}>
           <Ionicons name="swap-vertical" size={14} color={colors.textSecondary} />
           <Text style={styles.sortText}>{SORT_LABELS[sort]}</Text>
         </Pressable>
       </View>
 
-      {results.length === 0 ? (
+      {loading ? (
+        <GridSkeleton count={6} />
+      ) : results.length === 0 ? (
         <EmptyState
           icon="film-outline"
           title="No series match those filters"

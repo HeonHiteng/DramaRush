@@ -17,7 +17,7 @@ interface PaywallSheetProps {
   seriesTitle: string;
   coinBalance: number;
   isSubscriber: boolean;
-  onUnlockWithCoins: () => boolean;
+  onUnlockWithCoins: () => Promise<boolean>;
   onWatchAd: () => void;
   onViewCoinPackages: () => void;
   onViewMembership: () => void;
@@ -25,7 +25,7 @@ interface PaywallSheetProps {
   onUnlocked: () => void;
 }
 
-type Status = 'idle' | 'success' | 'insufficient';
+type Status = 'idle' | 'processing' | 'success' | 'insufficient';
 
 export function PaywallSheet({
   visible,
@@ -49,9 +49,10 @@ export function PaywallSheet({
     if (visible) setStatus('idle');
   }, [visible]);
 
-  const handleUnlock = () => {
+  const handleUnlock = async () => {
     impact();
-    const ok = onUnlockWithCoins();
+    setStatus('processing');
+    const ok = await onUnlockWithCoins();
     if (ok) {
       setStatus('success');
       successHaptic();
@@ -126,6 +127,7 @@ export function PaywallSheet({
             <AppButton
               label={`Unlock for ${episode.coinPrice ?? 0} ${BRAND.currency.coinSymbol}`}
               onPress={handleUnlock}
+              loading={status === 'processing'}
               variant="primary"
               fullWidth
               style={styles.primaryAction}

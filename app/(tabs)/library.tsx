@@ -7,13 +7,15 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PosterCard } from '@/components/media';
-import { getEpisodeById, getSeriesById } from '@/data';
+import { useSeries, useEpisodes } from '@/services/content';
 import { useLibraryStore } from '@/store';
 import { useContinueWatching } from '@/hooks/useContinueWatching';
 import { formatRelativeDate } from '@/utils/format';
 
 export default function LibraryScreen() {
   const continueWatching = useContinueWatching();
+  const { data: allSeries = [] } = useSeries();
+  const { data: allEpisodes = [] } = useEpisodes();
   const favoriteSeriesIds = useLibraryStore((s) => s.favoriteSeriesIds);
   const unlockedEpisodeIds = useLibraryStore((s) => s.unlockedEpisodeIds);
   const history = useLibraryStore((s) => s.history);
@@ -21,19 +23,22 @@ export default function LibraryScreen() {
   const removeHistoryEntry = useLibraryStore((s) => s.removeHistoryEntry);
   const clearHistory = useLibraryStore((s) => s.clearHistory);
 
+  const seriesById = useMemo(() => new Map(allSeries.map((s) => [s.id, s])), [allSeries]);
+  const episodeById = useMemo(() => new Map(allEpisodes.map((e) => [e.id, e])), [allEpisodes]);
+
   const favoriteSeries = useMemo(
-    () => favoriteSeriesIds.map((id) => getSeriesById(id)).filter((s): s is NonNullable<typeof s> => !!s),
-    [favoriteSeriesIds]
+    () => favoriteSeriesIds.map((id) => seriesById.get(id)).filter((s): s is NonNullable<typeof s> => !!s),
+    [favoriteSeriesIds, seriesById]
   );
 
   const unlockedSeries = useMemo(() => {
     const seriesIds = new Set(
-      unlockedEpisodeIds.map((epId) => getEpisodeById(epId)?.seriesId).filter((id): id is string => !!id)
+      unlockedEpisodeIds.map((epId) => episodeById.get(epId)?.seriesId).filter((id): id is string => !!id)
     );
     return Array.from(seriesIds)
-      .map((id) => getSeriesById(id))
+      .map((id) => seriesById.get(id))
       .filter((s): s is NonNullable<typeof s> => !!s);
-  }, [unlockedEpisodeIds]);
+  }, [unlockedEpisodeIds, seriesById, episodeById]);
 
   const hasAnything =
     continueWatching.length > 0 || favoriteSeries.length > 0 || unlockedSeries.length > 0 || history.length > 0;
@@ -116,8 +121,8 @@ export default function LibraryScreen() {
             action={{ label: 'Clear all', onPress: clearHistory }}
           >
             {history.slice(0, 30).map((entry) => {
-              const episode = getEpisodeById(entry.episodeId);
-              const series = getSeriesById(entry.seriesId);
+              const episode = episodeById.get(entry.episodeId);
+              const series = seriesById.get(entry.seriesId);
               if (!episode || !series) return null;
               return (
                 <RowItem

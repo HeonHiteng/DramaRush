@@ -43,9 +43,4 @@ export interface Series {
   cast: CastMember[];
   popularity: number;
   isNew: boolean;
-  episodeIds: string[];
-}
-
-export interface CollectionSeries extends Series {
-  episodeCount: number;
 }

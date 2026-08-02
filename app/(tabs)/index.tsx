@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,21 +18,21 @@ import {
   getTrendingNow,
   GENRES,
 } from '@/data';
+import { useSeries, useEpisodes } from '@/services/content';
 import { useContinueWatching } from '@/hooks/useContinueWatching';
 
 export default function HomeScreen() {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const seriesQuery = useSeries();
+  const episodesQuery = useEpisodes();
   const continueWatching = useContinueWatching();
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 900);
-    return () => clearTimeout(timer);
-  }, []);
+  const loading = seriesQuery.isLoading || episodesQuery.isLoading;
+  const series = seriesQuery.data ?? [];
+  const episodes = episodesQuery.data ?? [];
 
   const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 900);
+    seriesQuery.refetch();
+    episodesQuery.refetch();
   };
 
   if (loading) {
@@ -53,7 +53,9 @@ export default function HomeScreen() {
     <Screen edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl tintColor={colors.accent} refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl tintColor={colors.accent} refreshing={seriesQuery.isRefetching} onRefresh={onRefresh} />
+        }
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.headerRow}>
@@ -68,7 +70,7 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <HeroCarousel series={getHeroSeries()} />
+        <HeroCarousel series={getHeroSeries(series)} />
 
         {continueWatching.length > 0 && (
           <View style={styles.section}>
@@ -94,14 +96,14 @@ export default function HomeScreen() {
 
         <MembershipBanner />
 
-        <SeriesRail title="Trending Now" series={getTrendingNow()} />
-        <SeriesRail title="New Releases" series={getNewReleases()} />
-        <SeriesRail title="Recommended for You" series={getRecommendedForYou()} />
-        <SeriesRail title="Free to Watch" series={getFreeToWatch()} />
-        <SeriesRail title="Completed Series" series={getCompletedSeries()} />
+        <SeriesRail title="Trending Now" series={getTrendingNow(series)} />
+        <SeriesRail title="New Releases" series={getNewReleases(series)} />
+        <SeriesRail title="Recommended for You" series={getRecommendedForYou(series)} />
+        <SeriesRail title="Free to Watch" series={getFreeToWatch(series, episodes)} />
+        <SeriesRail title="Completed Series" series={getCompletedSeries(series)} />
 
         {GENRES.map((genre) => {
-          const list = getSeriesByGenre(genre);
+          const list = getSeriesByGenre(series, genre);
           if (list.length === 0) return null;
           return <SeriesRail key={genre} title={`${genre} Picks`} series={list} />;
         })}

@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Platform, StyleSheet, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Platform, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors } from '@/theme';
 import { BottomSheet } from '@/components/ui/BottomSheet';
@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PlayerPage } from '@/features/player/PlayerPage';
 import { RewardedAdOverlay } from '@/features/player/RewardedAdOverlay';
 import { EpisodeListSheet } from '@/features/player/EpisodeListSheet';
-import { getEpisodeById, getEpisodesForSeries, getSeriesById } from '@/data';
+import { useEpisodeById, useEpisodesForSeries, useSeriesById } from '@/services/content';
 import { useLibraryStore, useSubscriptionStore, useWalletStore } from '@/store';
 import type { Episode } from '@/types';
 
@@ -18,9 +18,9 @@ export default function PlayerScreen() {
 }
 
 function PlayerScreenInner({ episodeId }: { episodeId: string }) {
-  const initialEpisode = useMemo(() => getEpisodeById(episodeId), [episodeId]);
-  const series = initialEpisode ? getSeriesById(initialEpisode.seriesId) : undefined;
-  const episodes = useMemo(() => (series ? getEpisodesForSeries(series.id) : []), [series]);
+  const { data: initialEpisode, isLoading: episodeLoading } = useEpisodeById(episodeId);
+  const { data: series, isLoading: seriesLoading } = useSeriesById(initialEpisode?.seriesId);
+  const { data: episodes = [], isLoading: episodesLoading } = useEpisodesForSeries(initialEpisode?.seriesId);
   const initialIndex = Math.max(0, episodes.findIndex((e) => e.id === episodeId));
 
   const [activeIndex, setActiveIndex] = useState(initialIndex);
@@ -33,10 +33,18 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
   const isFavorite = useLibraryStore((s) => (series ? s.isFavorite(series.id) : false));
   const toggleFavorite = useLibraryStore((s) => s.toggleFavorite);
   const unlockedEpisodeIds = useLibraryStore((s) => s.unlockedEpisodeIds);
-  const unlockEpisode = useLibraryStore((s) => s.unlockEpisode);
+  const unlockEpisodeWithCoins = useLibraryStore((s) => s.unlockEpisodeWithCoins);
+  const redeemAdReward = useLibraryStore((s) => s.redeemAdReward);
   const balance = useWalletStore((s) => s.balance);
-  const spendCoins = useWalletStore((s) => s.spendCoins);
   const isSubscriber = useSubscriptionStore((s) => s.isActive);
+
+  if (episodeLoading || seriesLoading || episodesLoading) {
+    return (
+      <View style={[styles.notFoundRoot, styles.root]}>
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
 
   if (!initialEpisode || !series || episodes.length === 0) {
     return (
@@ -122,14 +130,9 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
         seriesTitle={series.title}
         coinBalance={balance}
         isSubscriber={isSubscriber}
-        onUnlockWithCoins={() => {
+        onUnlockWithCoins={async () => {
           if (!paywallEpisode) return false;
-          const ok = spendCoins(
-            paywallEpisode.coinPrice ?? 0,
-            `Unlocked ${series.title} · EP${paywallEpisode.number}`
-          );
-          if (ok) unlockEpisode(paywallEpisode.id);
-          return ok;
+          return unlockEpisodeWithCoins(paywallEpisode.id);
         }}
         onWatchAd={() => {
           setAdEpisode(paywallEpisode);
@@ -144,7 +147,7 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
       <RewardedAdOverlay
         visible={!!adEpisode}
         onRewardEarned={() => {
-          if (adEpisode) unlockEpisode(adEpisode.id);
+          if (adEpisode) redeemAdReward(adEpisode.id);
         }}
         onClose={() => setAdEpisode(null)}
       />

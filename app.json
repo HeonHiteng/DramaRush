@@ -36,7 +36,8 @@
         {
           "supportsBackgroundPlayback": false
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "isPrototype": true

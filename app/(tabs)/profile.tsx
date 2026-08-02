@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,10 +18,7 @@ import {
   useLibraryStore,
   resetPrototype,
 } from '@/store';
-import { EPISODES } from '@/data';
-
-const PREMIUM_EPISODE_IDS = EPISODES.filter((e) => e.access !== 'free').map((e) => e.id);
-const ALL_EPISODE_IDS = EPISODES.map((e) => e.id);
+import { useEpisodes } from '@/services/content';
 
 export default function ProfileScreen() {
   const user = useUserStore((s) => s.user);
@@ -33,6 +30,10 @@ export default function ProfileScreen() {
   const clearHistory = useLibraryStore((s) => s.clearHistory);
   const lockAllPremium = useLibraryStore((s) => s.lockAllPremium);
   const unlockAll = useLibraryStore((s) => s.unlockAll);
+  const { data: allEpisodes = [] } = useEpisodes();
+
+  const premiumEpisodeIds = useMemo(() => allEpisodes.filter((e) => e.access !== 'free').map((e) => e.id), [allEpisodes]);
+  const allEpisodeIds = useMemo(() => allEpisodes.map((e) => e.id), [allEpisodes]);
 
   const [demoExpanded, setDemoExpanded] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -48,8 +49,7 @@ export default function ProfileScreen() {
 
   const confirmSignOut = () => {
     if (Platform.OS === 'web') {
-      signOut();
-      router.replace('/auth');
+      signOut().then(() => router.replace('/auth'));
       return;
     }
     Alert.alert('Sign out', 'You can sign back in anytime with any option.', [
@@ -58,8 +58,7 @@ export default function ProfileScreen() {
         text: 'Sign Out',
         style: 'destructive',
         onPress: () => {
-          signOut();
-          router.replace('/auth');
+          signOut().then(() => router.replace('/auth'));
         },
       },
     ]);
@@ -161,8 +160,8 @@ export default function ProfileScreen() {
                 <DemoButton label="Remove All Coins" onPress={() => setBalance(0)} />
                 <DemoButton label="Activate Membership" onPress={() => subscription.activate('monthly')} />
                 <DemoButton label="Cancel Membership" onPress={() => subscription.cancel()} />
-                <DemoButton label="Lock All Premium" onPress={() => lockAllPremium(PREMIUM_EPISODE_IDS)} />
-                <DemoButton label="Unlock All Episodes" onPress={() => unlockAll(ALL_EPISODE_IDS)} />
+                <DemoButton label="Lock All Premium" onPress={() => lockAllPremium(premiumEpisodeIds)} />
+                <DemoButton label="Unlock All Episodes" onPress={() => unlockAll(allEpisodeIds)} />
                 <DemoButton label="Clear Viewing History" onPress={clearHistory} />
                 <DemoButton label="Reset Entire Prototype" onPress={() => setConfirmVisible(true)} destructive />
               </View>
