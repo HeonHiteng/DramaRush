@@ -74,6 +74,9 @@ export default function AuthScreen() {
           <Text style={styles.subtitle}>Sign in to sync your favourites, coins, and progress across devices.</Text>
 
           <View style={styles.actions}>
+            {authError && pending === null && !showEmailForm && (
+              <Text style={styles.errorText}>{authError}</Text>
+            )}
             <AppButton
               label="Continue as Guest"
               onPress={() => runSignIn('guest', signInAsGuest)}
