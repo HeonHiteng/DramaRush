@@ -12,7 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { colors, spacing, typography } from '@/theme';
+import { colors, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { useUserStore } from '@/store';
 import { BRAND } from '@/config';
@@ -23,13 +23,33 @@ const SLIDE_WIDTH = Math.min(SCREEN_WIDTH, 430);
 interface Slide {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
-  colors: readonly [string, string];
+  subtitle: string;
+  colors: readonly [string, string, string];
+  glow: string;
 }
 
 const SLIDES: Slide[] = [
-  { icon: 'film', title: 'Stories made for every moment.', colors: ['#2A1B2E', '#4A2430'] },
-  { icon: 'flash', title: 'Watch addictive dramas in minutes.', colors: ['#1B2033', '#2E3A66'] },
-  { icon: 'diamond', title: 'Unlock more with coins or membership.', colors: ['#241017', '#5E1E2E'] },
+  {
+    icon: 'film',
+    title: 'Stories made for every moment.',
+    subtitle: 'Bite-sized episodes that fit into any break in your day.',
+    colors: ['#3A2030', '#1E1420', colors.bg],
+    glow: 'rgba(255,90,95,0.35)',
+  },
+  {
+    icon: 'flash',
+    title: 'Watch addictive dramas in minutes.',
+    subtitle: 'Vertical, binge-ready episodes — no downloads, no waiting.',
+    colors: ['#1C2440', '#161B30', colors.bg],
+    glow: 'rgba(78,140,255,0.35)',
+  },
+  {
+    icon: 'diamond',
+    title: 'Unlock more with coins or membership.',
+    subtitle: 'Earn coins, watch free with ads, or go unlimited.',
+    colors: ['#402715', '#241708', colors.bg],
+    glow: 'rgba(244,185,66,0.35)',
+  },
 ];
 
 export default function OnboardingScreen() {
@@ -76,17 +96,28 @@ export default function OnboardingScreen() {
         scrollEventThrottle={16}
         getItemLayout={(_, i) => ({ length: SLIDE_WIDTH, offset: SLIDE_WIDTH * i, index: i })}
         renderItem={({ item }) => (
-          <View style={{ width: SLIDE_WIDTH }}>
-            <LinearGradient colors={item.colors} style={styles.slideGradient}>
-              <View style={styles.iconCircle}>
-                <Ionicons name={item.icon} size={48} color={colors.white} />
+          <LinearGradient colors={item.colors} style={{ width: SLIDE_WIDTH }}>
+            <View style={styles.illustration}>
+              <View style={[styles.glow, { backgroundColor: item.glow }]} />
+
+              <View style={[styles.stackCard, styles.stackCardBack, { transform: [{ rotate: '-14deg' }] }]} />
+              <View style={[styles.stackCard, styles.stackCardMid, { transform: [{ rotate: '10deg' }] }]} />
+              <View style={styles.stackCard}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.06)']}
+                  style={styles.stackCardFill}
+                >
+                  <Ionicons name={item.icon} size={40} color={colors.white} />
+                </LinearGradient>
               </View>
-            </LinearGradient>
+            </View>
+
             <View style={styles.textBlock}>
               <Text style={styles.brand}>{BRAND.name}</Text>
               <Text style={styles.title}>{item.title}</Text>
+              <Text style={styles.subtitle}>{item.subtitle}</Text>
             </View>
-          </View>
+          </LinearGradient>
         )}
       />
 
@@ -107,27 +138,72 @@ export default function OnboardingScreen() {
   );
 }
 
+const CARD_SIZE = 128;
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  skip: { position: 'absolute', top: spacing.xl, right: spacing.lg, zIndex: 10, padding: spacing.xs },
-  skipText: { ...typography.bodyMedium, color: colors.textTertiary },
-  slideGradient: {
+  skip: {
+    position: 'absolute',
+    top: spacing.xl,
+    right: spacing.lg,
+    zIndex: 10,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  skipText: { ...typography.bodyMedium, color: colors.textSecondary },
+  illustration: {
     height: 340,
     marginTop: 90,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+  glow: {
+    position: 'absolute',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    opacity: 0.9,
+  },
+  stackCard: {
+    position: 'absolute',
+    width: CARD_SIZE,
+    height: CARD_SIZE * 1.35,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  stackCardBack: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  stackCardMid: {
+    backgroundColor: 'rgba(255,255,255,0.09)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  stackCardFill: {
+    flex: 1,
+    width: '100%',
+    borderRadius: radius.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   textBlock: { paddingHorizontal: spacing.xl, marginTop: spacing.xl, alignItems: 'center' },
   brand: { ...typography.caption, color: colors.accent, marginBottom: spacing.sm, letterSpacing: 2 },
   title: { ...typography.h1, color: colors.textPrimary, textAlign: 'center' },
+  subtitle: {
+    ...typography.body,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+    maxWidth: 320,
+  },
   footer: { padding: spacing.xl, gap: spacing.xl },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.surfaceRaised },
