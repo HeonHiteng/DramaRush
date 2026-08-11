@@ -18,7 +18,7 @@ const emailSchema = z.object({
 });
 type EmailFormValues = z.infer<typeof emailSchema>;
 
-type PendingAction = 'guest' | 'email' | 'google' | 'apple' | null;
+type PendingAction = 'guest' | 'email' | 'google' | null;
 
 export default function AuthScreen() {
   const signInAsGuest = useUserStore((s) => s.signInAsGuest);
@@ -192,19 +192,10 @@ export default function AuthScreen() {
               disabled={isAuthenticating && pending !== 'google'}
               icon={<Ionicons name="logo-google" size={18} color={colors.textPrimary} />}
             />
-            <AppButton
-              label="Continue with Apple"
-              onPress={() => runSignIn('apple', () => signInWithOAuth('apple'))}
-              variant="secondary"
-              fullWidth
-              loading={pending === 'apple'}
-              disabled={isAuthenticating && pending !== 'apple'}
-              icon={<Ionicons name="logo-apple" size={18} color={colors.textPrimary} />}
-            />
           </View>
 
           <Text style={styles.legal}>
-            Google and Apple sign-in require one-time provider setup in the backend — see the
+            Google sign-in requires one-time provider setup in the backend — see the
             DramaRush-Backend README. Everything else here is a real account.
           </Text>
         </ScrollView>
