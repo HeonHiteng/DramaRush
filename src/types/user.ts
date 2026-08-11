@@ -7,6 +7,7 @@ export interface MockUser {
   avatarSeed: string;
   provider: AuthProvider;
   createdAt: string;
+  isAdmin: boolean;
 }
 
 export type SubscriptionPlanId = 'monthly' | 'annual';

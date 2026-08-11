@@ -13,7 +13,7 @@ describe('prototype reset behavior', () => {
   beforeEach(async () => {
     __reset();
     useUserStore.setState({
-      user: { id: 'u1', displayName: 'Test User', provider: 'guest', avatarSeed: 'x', createdAt: new Date().toISOString() },
+      user: { id: 'u1', displayName: 'Test User', provider: 'guest', avatarSeed: 'x', createdAt: new Date().toISOString(), isAdmin: false },
       hasOnboarded: true,
     });
 

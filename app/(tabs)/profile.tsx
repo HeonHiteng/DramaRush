@@ -133,6 +133,15 @@ export default function ProfileScreen() {
           <ProfileMenuItem icon="shield-checkmark-outline" label="Privacy Policy" onPress={() => router.push('/settings/legal?type=privacy')} />
         </View>
 
+        {user?.isAdmin && (
+          <>
+            <Text style={styles.groupLabel}>Admin</Text>
+            <View style={styles.menuGroup}>
+              <ProfileMenuItem icon="film-outline" label="Content Admin" onPress={() => router.push('/admin')} />
+            </View>
+          </>
+        )}
+
         <View style={styles.menuGroup}>
           <ProfileMenuItem icon="log-out-outline" label="Sign Out" onPress={confirmSignOut} />
           <ProfileMenuItem icon="trash-outline" label="Reset Prototype" destructive onPress={() => setConfirmVisible(true)} />

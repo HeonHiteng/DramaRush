@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import type { CastMember, Episode, Series } from '@/types';
+import type { CastMember, Episode, EpisodeAccessType, Genre, Series, SeriesStatus } from '@/types';
 
 interface SeriesRow {
   id: string;
@@ -104,4 +104,154 @@ export function useEpisodeById(id: string | undefined) {
   const { data: episodes, ...rest } = useEpisodes();
   const item = useMemo(() => (id ? episodes?.find((e) => e.id === id) : undefined), [episodes, id]);
   return { data: item, ...rest };
+}
+
+// --- Admin mutations -------------------------------------------------------
+// Writes are RLS-gated on profiles.is_admin (see DramaRush-Backend migration
+// 20260803000002_admin_role.sql) — these calls fail under RLS for non-admins,
+// the same as any other supabase-js call, so no extra client-side check is
+// needed here beyond the route guard in app/admin/_layout.tsx.
+
+export interface SeriesInput {
+  id: string;
+  title: string;
+  synopsis: string;
+  genres: Genre[];
+  rating: number;
+  status: SeriesStatus;
+  language: Series['language'];
+  posterColorFrom: string;
+  posterColorTo: string;
+  bannerColorFrom: string;
+  bannerColorTo: string;
+  cast: CastMember[];
+  popularity: number;
+  isNew: boolean;
+}
+
+function toSeriesRow(input: SeriesInput) {
+  return {
+    id: input.id,
+    title: input.title,
+    synopsis: input.synopsis,
+    genres: input.genres,
+    rating: input.rating,
+    status: input.status,
+    language: input.language,
+    poster_color_from: input.posterColorFrom,
+    poster_color_to: input.posterColorTo,
+    banner_color_from: input.bannerColorFrom,
+    banner_color_to: input.bannerColorTo,
+    cast_members: input.cast,
+    popularity: input.popularity,
+    is_new: input.isNew,
+  };
+}
+
+export function useCreateSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: SeriesInput) => {
+      const { error } = await supabase.from('series').insert(toSeriesRow(input));
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['series'] }),
+  });
+}
+
+export function useUpdateSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: SeriesInput) => {
+      const { id, ...rest } = toSeriesRow(input);
+      const { error } = await supabase.from('series').update(rest).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['series'] }),
+  });
+}
+
+export function useDeleteSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('series').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['series'] });
+      queryClient.invalidateQueries({ queryKey: ['episodes'] });
+    },
+  });
+}
+
+export interface EpisodeInput {
+  id: string;
+  seriesId: string;
+  number: number;
+  title: string;
+  durationSec: number;
+  videoUri: string;
+  access: EpisodeAccessType;
+  coinPrice?: number;
+}
+
+function toEpisodeRow(input: EpisodeInput) {
+  return {
+    id: input.id,
+    series_id: input.seriesId,
+    number: input.number,
+    title: input.title,
+    duration_sec: input.durationSec,
+    video_uri: input.videoUri,
+    access: input.access,
+    coin_price: input.access === 'coin' ? (input.coinPrice ?? null) : null,
+  };
+}
+
+export function useCreateEpisode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: EpisodeInput) => {
+      const { error } = await supabase.from('episodes').insert(toEpisodeRow(input));
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['episodes'] }),
+  });
+}
+
+export function useUpdateEpisode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: EpisodeInput) => {
+      const { id, ...rest } = toEpisodeRow(input);
+      const { error } = await supabase.from('episodes').update(rest).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['episodes'] }),
+  });
+}
+
+export function useDeleteEpisode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('episodes').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['episodes'] }),
+  });
+}
+
+/** Uploads a video file to the public episode-videos bucket and returns its public URL. */
+export async function uploadEpisodeVideo(file: File, seriesId: string, episodeNumber: number): Promise<string> {
+  const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.mp4';
+  const path = `${seriesId}/ep${episodeNumber}${ext}`;
+  const { error } = await supabase.storage.from('episode-videos').upload(path, file, {
+    contentType: file.type || 'video/mp4',
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from('episode-videos').getPublicUrl(path);
+  return data.publicUrl;
 }

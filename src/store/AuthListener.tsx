@@ -19,7 +19,7 @@ async function loadMockUser(session: Session): Promise<MockUser> {
   const provider = detectProvider(session);
   const { data: profile } = await supabase
     .from('profiles')
-    .select('display_name, avatar_seed')
+    .select('display_name, avatar_seed, is_admin')
     .eq('user_id', session.user.id)
     .maybeSingle();
 
@@ -32,6 +32,7 @@ async function loadMockUser(session: Session): Promise<MockUser> {
     avatarSeed: profile?.avatar_seed ?? profile?.display_name ?? fallbackName,
     provider,
     createdAt: session.user.created_at,
+    isAdmin: profile?.is_admin ?? false,
   };
 }
 
