@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -58,7 +58,11 @@ export function PosterCard({
           end={{ x: 0.9, y: 1 }}
           style={styles.poster}
         >
-          <PosterArt series={series} />
+          {series.posterImageUri ? (
+            <Image source={{ uri: series.posterImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          ) : (
+            <PosterArt series={series} />
+          )}
           <LinearGradient colors={gradients.posterFade} style={styles.posterOverlay} />
 
           {series.isNew && (

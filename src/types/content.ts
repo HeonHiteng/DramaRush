@@ -43,4 +43,7 @@ export interface Series {
   cast: CastMember[];
   popularity: number;
   isNew: boolean;
+  /** Real poster artwork, if any. Falls back to the gradient + icon-motif
+   * treatment (PosterArt) when absent. */
+  posterImageUri?: string;
 }

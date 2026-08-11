@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
+  Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
   StyleSheet,
@@ -56,7 +57,11 @@ export function HeroCarousel({ series }: HeroCarouselProps) {
               end={{ x: 1, y: 1 }}
               style={styles.gradient}
             >
-              <PosterArt series={item} size="hero" />
+              {item.posterImageUri ? (
+                <Image source={{ uri: item.posterImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              ) : (
+                <PosterArt series={item} size="hero" />
+              )}
               <LinearGradient colors={gradients.scrimBottom} style={StyleSheet.absoluteFill} />
               <View style={styles.badgeRow}>
                 {item.genres.slice(0, 2).map((g) => (

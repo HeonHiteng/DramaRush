@@ -18,6 +18,7 @@ interface SeriesRow {
   cast_members: CastMember[];
   popularity: number;
   is_new: boolean;
+  poster_image_uri: string | null;
 }
 
 interface EpisodeRow {
@@ -47,6 +48,7 @@ function mapSeries(row: SeriesRow): Series {
     cast: row.cast_members,
     popularity: row.popularity,
     isNew: row.is_new,
+    posterImageUri: row.poster_image_uri ?? undefined,
   };
 }
 
@@ -127,6 +129,7 @@ export interface SeriesInput {
   cast: CastMember[];
   popularity: number;
   isNew: boolean;
+  posterImageUri?: string;
 }
 
 function toSeriesRow(input: SeriesInput) {
@@ -145,7 +148,21 @@ function toSeriesRow(input: SeriesInput) {
     cast_members: input.cast,
     popularity: input.popularity,
     is_new: input.isNew,
+    poster_image_uri: input.posterImageUri ?? null,
   };
+}
+
+/** Uploads an image file to the public series-posters bucket and returns its public URL. */
+export async function uploadSeriesPoster(file: File, seriesId: string): Promise<string> {
+  const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.jpg';
+  const path = `${seriesId}${ext}`;
+  const { error } = await supabase.storage.from('series-posters').upload(path, file, {
+    contentType: file.type || 'image/jpeg',
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from('series-posters').getPublicUrl(path);
+  return data.publicUrl;
 }
 
 export function useCreateSeries() {

@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { GenreChip } from '@/components/ui/GenreChip';
-import { VideoFilePicker } from './VideoFilePicker';
+import { FilePicker } from './FilePicker';
 import { uploadEpisodeVideo } from '@/services/content';
 import type { EpisodeInput } from '@/services/content';
 import { EPISODE_ACCESS_TYPES } from '@/data/adminPresets';
@@ -100,7 +100,13 @@ export function AdminEpisodeForm({ seriesId, initial, defaultNumber, onSubmit, s
       )}
 
       <Field label="Video file">
-        <VideoFilePicker onFileSelected={setVideoFile} currentVideoUri={initial?.videoUri} />
+        <FilePicker
+          accept="video/*"
+          label="Choose a video file"
+          replaceLabel="Replace video file"
+          onFileSelected={setVideoFile}
+          currentFileUri={initial?.videoUri}
+        />
       </Field>
 
       {error && <Text style={styles.errorText}>{error}</Text>}

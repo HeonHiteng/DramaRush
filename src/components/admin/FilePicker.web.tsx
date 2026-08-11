@@ -3,13 +3,16 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing, typography } from '@/theme';
 
-interface VideoFilePickerProps {
+interface FilePickerProps {
+  accept: string;
+  label: string;
+  replaceLabel: string;
   onFileSelected: (file: File) => void;
-  currentVideoUri?: string;
+  currentFileUri?: string;
 }
 
-/** Web-only file picker (uses a real DOM <input type="file">). See VideoFilePicker.tsx for native. */
-export function VideoFilePicker({ onFileSelected, currentVideoUri }: VideoFilePickerProps) {
+/** Web-only file picker (uses a real DOM <input type="file">). See FilePicker.tsx for native. */
+export function FilePicker({ accept, label, replaceLabel, onFileSelected, currentFileUri }: FilePickerProps) {
   const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -23,23 +26,16 @@ export function VideoFilePicker({ onFileSelected, currentVideoUri }: VideoFilePi
 
   return (
     <View>
-      <Pressable
-        onPress={() => inputRef.current?.click()}
-        style={styles.dropZone}
-        accessibilityRole="button"
-        accessibilityLabel="Choose video file"
-      >
+      <Pressable onPress={() => inputRef.current?.click()} style={styles.dropZone} accessibilityRole="button" accessibilityLabel={label}>
         <Ionicons name="cloud-upload-outline" size={28} color={colors.textTertiary} />
-        <Text style={styles.dropZoneText}>
-          {fileName ?? (currentVideoUri ? 'Replace video file' : 'Choose a video file')}
-        </Text>
-        {!fileName && currentVideoUri && (
+        <Text style={styles.dropZoneText}>{fileName ?? (currentFileUri ? replaceLabel : label)}</Text>
+        {!fileName && currentFileUri && (
           <Text style={styles.currentUri} numberOfLines={1}>
-            Current: {currentVideoUri}
+            Current: {currentFileUri}
           </Text>
         )}
       </Pressable>
-      <input ref={inputRef} type="file" accept="video/*" onChange={handleChange} style={{ display: 'none' }} />
+      <input ref={inputRef} type="file" accept={accept} onChange={handleChange} style={{ display: 'none' }} />
     </View>
   );
 }

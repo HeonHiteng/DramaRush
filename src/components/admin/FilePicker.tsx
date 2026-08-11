@@ -3,17 +3,20 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing, typography } from '@/theme';
 
-interface VideoFilePickerProps {
+interface FilePickerProps {
+  accept: string;
+  label: string;
+  replaceLabel: string;
   onFileSelected: (file: File) => void;
-  currentVideoUri?: string;
+  currentFileUri?: string;
 }
 
-/** Native fallback — the admin content tool is web-only for now; see VideoFilePicker.web.tsx. */
-export function VideoFilePicker(_props: VideoFilePickerProps) {
+/** Native fallback — the admin content tool is web-only for now; see FilePicker.web.tsx. */
+export function FilePicker(_props: FilePickerProps) {
   return (
     <View style={styles.dropZone}>
       <Ionicons name="desktop-outline" size={28} color={colors.textTertiary} />
-      <Text style={styles.text}>Video upload is only available in the web admin panel right now.</Text>
+      <Text style={styles.text}>File upload is only available in the web admin panel right now.</Text>
       <Text style={styles.subtext}>Open this screen in a desktop browser to upload a file.</Text>
     </View>
   );

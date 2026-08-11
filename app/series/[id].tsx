@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -67,7 +67,11 @@ export default function SeriesDetailScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.banner}
           >
-            <PosterArt series={series} size="hero" />
+            {series.posterImageUri ? (
+              <Image source={{ uri: series.posterImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <PosterArt series={series} size="hero" />
+            )}
             <LinearGradient colors={gradients.posterFade} style={StyleSheet.absoluteFill} />
           </LinearGradient>
           <View style={styles.headerOverlay}>

@@ -7,6 +7,8 @@ import { AppButton } from '@/components/ui/AppButton';
 import { GenreChip } from '@/components/ui/GenreChip';
 import { GENRES } from '@/data/genres';
 import { GRADIENT_PRESETS, LANGUAGES, SERIES_STATUSES } from '@/data/adminPresets';
+import { FilePicker } from './FilePicker';
+import { uploadSeriesPoster } from '@/services/content';
 import type { SeriesInput } from '@/services/content';
 import type { CastMember, Genre, Series } from '@/types';
 
@@ -40,7 +42,9 @@ export function AdminSeriesForm({ initial, onSubmit, submitting, submitLabel }: 
     const match = GRADIENT_PRESETS.findIndex((p) => p.posterColorFrom === initial.posterColorFrom);
     return match >= 0 ? match : 0;
   });
+  const [posterFile, setPosterFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
 
   const toggleGenre = (g: Genre) => {
     setGenres((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
@@ -62,9 +66,23 @@ export function AdminSeriesForm({ initial, onSubmit, submitting, submitLabel }: 
 
     const preset = GRADIENT_PRESETS[presetIndex];
     const cleanedCast = cast.filter((c) => c.name.trim() && c.role.trim());
+    const id = initial?.id ?? slugify(title);
+
+    let posterImageUri = initial?.posterImageUri;
+    if (posterFile) {
+      try {
+        setUploadingPoster(true);
+        posterImageUri = await uploadSeriesPoster(posterFile, id);
+      } catch (err) {
+        setUploadingPoster(false);
+        setError(err instanceof Error ? `Poster upload failed: ${err.message}` : 'Poster upload failed.');
+        return;
+      }
+      setUploadingPoster(false);
+    }
 
     await onSubmit({
-      id: initial?.id ?? slugify(title),
+      id,
       title: title.trim(),
       synopsis: synopsis.trim(),
       genres,
@@ -78,6 +96,7 @@ export function AdminSeriesForm({ initial, onSubmit, submitting, submitLabel }: 
       cast: cleanedCast,
       popularity: popularityNum,
       isNew,
+      posterImageUri,
     });
   };
 
@@ -105,6 +124,17 @@ export function AdminSeriesForm({ initial, onSubmit, submitting, submitLabel }: 
             <GenreChip key={g} label={g} selected={genres.includes(g)} onPress={() => toggleGenre(g)} />
           ))}
         </View>
+      </Field>
+
+      <Field label="Poster image (optional)">
+        <FilePicker
+          accept="image/*"
+          label="Choose a poster image"
+          replaceLabel="Replace poster image"
+          onFileSelected={setPosterFile}
+          currentFileUri={initial?.posterImageUri}
+        />
+        <Text style={styles.hint}>Falls back to the color theme + icon below when no image is set.</Text>
       </Field>
 
       <Field label="Color theme">
@@ -186,7 +216,12 @@ export function AdminSeriesForm({ initial, onSubmit, submitting, submitLabel }: 
 
       {error && <Text style={styles.errorText}>{error}</Text>}
 
-      <AppButton label={submitLabel} onPress={handleSubmit} loading={submitting} fullWidth />
+      <AppButton
+        label={uploadingPoster ? 'Uploading poster…' : submitLabel}
+        onPress={handleSubmit}
+        loading={submitting || uploadingPoster}
+        fullWidth
+      />
     </ScrollView>
   );
 }
