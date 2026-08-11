@@ -15,11 +15,16 @@ export function DailyMissionCard() {
   const claimDailyMission = useWalletStore((s) => s.claimDailyMission);
   const [adVisible, setAdVisible] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRewardEarned = async () => {
     setClaiming(true);
-    await claimDailyMission();
+    setError(null);
+    const awarded = await claimDailyMission();
     setClaiming(false);
+    if (awarded === 0 && !useWalletStore.getState().dailyMissionClaimedToday) {
+      setError("Couldn't claim your reward — check your connection and try again.");
+    }
   };
 
   return (
@@ -35,6 +40,7 @@ export function DailyMissionCard() {
               ? 'Come back tomorrow for more free coins.'
               : `Watch a short ad, earn ${DAILY_MISSION_REWARD} ${BRAND.currency.coinSymbol} free.`}
           </Text>
+          {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
         <AppButton
           label={claimedToday ? 'Claimed' : 'Watch Ad'}
@@ -75,4 +81,5 @@ const styles = StyleSheet.create({
   textWrap: { flex: 1 },
   title: { ...typography.bodyMedium, color: colors.textPrimary },
   subtitle: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
+  errorText: { ...typography.caption, color: colors.danger, marginTop: 4 },
 });
