@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Text } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { StackHeader } from '@/components/ui/StackHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { AdminEpisodeForm } from '@/components/admin/AdminEpisodeForm';
 import { useEpisodeById, useUpdateEpisode } from '@/services/content';
 import { colors, spacing, typography } from '@/theme';
+import { goBack } from '@/utils/navigation';
 
 export default function EditEpisodeScreen() {
   const { id: seriesId, episodeId } = useLocalSearchParams<{ id: string; episodeId: string }>();
@@ -44,7 +45,7 @@ export default function EditEpisodeScreen() {
           setError(null);
           try {
             await updateEpisode.mutateAsync(input);
-            router.back();
+            goBack(`/admin/series/${seriesId}`);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to save episode.');
           }

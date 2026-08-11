@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { StackHeader } from '@/components/ui/StackHeader';
@@ -11,6 +10,7 @@ import { SUBSCRIPTION_PLANS } from '@/data';
 import { useSubscriptionStore, useWalletStore } from '@/store';
 import { BRAND } from '@/config';
 import { formatDateLong } from '@/utils/format';
+import { goBack } from '@/utils/navigation';
 import { useHaptics } from '@/hooks/useHaptics';
 import type { SubscriptionPlanId } from '@/types';
 
@@ -77,7 +77,7 @@ export default function SubscriptionScreen() {
             {subscription.planId === 'annual' ? 'Annual' : 'Monthly'} membership is active
             {subscription.renewsAt ? ` and renews on ${formatDateLong(subscription.renewsAt)}.` : '.'}
           </Text>
-          <AppButton label="Back to Browsing" onPress={() => router.back()} fullWidth style={styles.successAction} />
+          <AppButton label="Back to Browsing" onPress={() => goBack()} fullWidth style={styles.successAction} />
           <AppButton label="Cancel Membership" onPress={cancelMembership} variant="ghost" fullWidth />
         </View>
       </Screen>

@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Text } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { StackHeader } from '@/components/ui/StackHeader';
 import { AdminEpisodeForm } from '@/components/admin/AdminEpisodeForm';
 import { useCreateEpisode, useEpisodesForSeries } from '@/services/content';
 import { colors, spacing, typography } from '@/theme';
+import { goBack } from '@/utils/navigation';
 
 export default function NewEpisodeScreen() {
   const { id: seriesId } = useLocalSearchParams<{ id: string }>();
@@ -29,7 +30,7 @@ export default function NewEpisodeScreen() {
           setError(null);
           try {
             await createEpisode.mutateAsync(input);
-            router.back();
+            goBack(`/admin/series/${seriesId}`);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create episode.');
           }

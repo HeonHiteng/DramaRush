@@ -10,6 +10,7 @@ import { RewardedAdOverlay } from '@/features/player/RewardedAdOverlay';
 import { EpisodeListSheet } from '@/features/player/EpisodeListSheet';
 import { useEpisodeById, useEpisodesForSeries, useSeriesById } from '@/services/content';
 import { useLibraryStore, useSubscriptionStore, useWalletStore } from '@/store';
+import { goBack } from '@/utils/navigation';
 import type { Episode } from '@/types';
 
 export default function PlayerScreen() {
@@ -49,7 +50,7 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
   if (!initialEpisode || !series || episodes.length === 0) {
     return (
       <View style={styles.notFoundRoot}>
-        <EmptyState icon="alert-circle-outline" title="Episode not found" actionLabel="Go Back" onAction={() => router.back()} />
+        <EmptyState icon="alert-circle-outline" title="Episode not found" actionLabel="Go Back" onAction={() => goBack()} />
       </View>
     );
   }
@@ -114,7 +115,7 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
                 onToggleFavorite={() => toggleFavorite(series.id)}
                 onShare={handleShare}
                 onOpenEpisodeList={() => setEpisodeListVisible(true)}
-                onClose={() => router.back()}
+                onClose={() => goBack(`/series/${series.id}`)}
                 onLocked={() => setPaywallEpisode(item)}
                 onAutoAdvance={() => goToIndex(index + 1)}
               />

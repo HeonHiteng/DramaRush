@@ -1,8 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { colors, spacing, typography } from '@/theme';
+import { goBack } from '@/utils/navigation';
 
 interface StackHeaderProps {
   title: string;
@@ -14,7 +14,7 @@ export function StackHeader({ title, onBack, right }: StackHeaderProps) {
   return (
     <View style={styles.row}>
       <Pressable
-        onPress={onBack ?? (() => router.back())}
+        onPress={onBack ?? (() => goBack())}
         accessibilityRole="button"
         accessibilityLabel="Go back"
         hitSlop={10}
