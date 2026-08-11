@@ -74,12 +74,6 @@ export function PosterCard({
             </View>
           )}
 
-          <View style={styles.titleWrap}>
-            <Text style={styles.posterTitle} numberOfLines={2}>
-              {series.title}
-            </Text>
-          </View>
-
           {typeof progress === 'number' && (
             <View style={styles.progressWrap}>
               <ProgressBar progress={progress} height={3} />
@@ -130,8 +124,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   ratingText: { ...typography.micro, color: colors.textPrimary },
-  titleWrap: { padding: spacing.xs },
-  posterTitle: { ...typography.bodyMedium, color: colors.textPrimary },
   progressWrap: { paddingHorizontal: spacing.xs, paddingBottom: spacing.xs },
   captionTitle: { ...typography.bodyMedium, color: colors.textPrimary, marginTop: spacing.xs },
   captionSubtitle: { ...typography.caption, color: colors.textTertiary, marginTop: 1 },

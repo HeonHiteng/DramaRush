@@ -91,7 +91,7 @@ export default function WalletScreen() {
                   <Text style={styles.badgeText}>{pkg.badge}</Text>
                 </View>
               )}
-              <Ionicons name="logo-bitcoin" size={26} color={colors.gold} style={styles.packageIcon} />
+              <Text style={styles.packageIcon}>{BRAND.currency.coinSymbol}</Text>
               <Text style={styles.packageCoins}>{pkg.coins.toLocaleString()}</Text>
               {pkg.bonusCoins > 0 && <Text style={styles.packageBonus}>+{pkg.bonusCoins} bonus</Text>}
               <Text style={styles.packagePrice}>{pkg.priceLabel}</Text>
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   badgeText: { ...typography.micro, color: colors.white },
-  packageIcon: { marginBottom: spacing.xs, marginTop: spacing.xs },
+  packageIcon: { fontSize: 26, marginBottom: spacing.xs, marginTop: spacing.xs },
   packageCoins: { ...typography.h2, color: colors.textPrimary },
   packageBonus: { ...typography.caption, color: colors.gold, marginTop: 2 },
   packagePrice: { ...typography.bodyMedium, color: colors.textSecondary, marginTop: spacing.sm },

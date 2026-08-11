@@ -19,7 +19,7 @@ export function PosterArt({ series, size = 'thumb' }: PosterArtProps) {
   const iconSize = size === 'hero' ? 220 : 96;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, styles.noPointerEvents]}>
       <LinearGradient
         colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0)']}
         start={{ x: 0, y: 0 }}
@@ -27,13 +27,14 @@ export function PosterArt({ series, size = 'thumb' }: PosterArtProps) {
         style={StyleSheet.absoluteFill}
       />
       <View style={[styles.motifWrap, size === 'hero' ? styles.motifWrapHero : styles.motifWrapThumb]}>
-        <Ionicons name={motif} size={iconSize} color="rgba(255,255,255,0.16)" style={styles.motifIcon} />
+        <Ionicons name={motif} size={iconSize} color="rgba(255,255,255,0.22)" style={styles.motifIcon} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  noPointerEvents: { pointerEvents: 'none' },
   motifWrap: { position: 'absolute' },
   motifWrapThumb: { right: -18, bottom: -14 },
   motifWrapHero: { right: -24, bottom: -30 },
