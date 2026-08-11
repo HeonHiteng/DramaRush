@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { colors, gradients, radius, spacing, typography } from '@/theme';
 import { StackHeader } from '@/components/ui/StackHeader';
 import { AppButton } from '@/components/ui/AppButton';
-import { EpisodeRow, SeriesRail } from '@/components/media';
+import { EpisodeRow, PosterArt, SeriesRail } from '@/components/media';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { getSimilarSeries } from '@/data';
 import { useSeries, useSeriesById, useEpisodesForSeries } from '@/services/content';
@@ -67,6 +67,7 @@ export default function SeriesDetailScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.banner}
           >
+            <PosterArt series={series} size="hero" />
             <LinearGradient colors={gradients.posterFade} style={StyleSheet.absoluteFill} />
           </LinearGradient>
           <View style={styles.headerOverlay}>

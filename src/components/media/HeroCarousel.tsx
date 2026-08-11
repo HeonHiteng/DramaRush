@@ -12,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { colors, gradients, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
+import { PosterArt } from './PosterArt';
 import type { Series } from '@/types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -55,6 +56,7 @@ export function HeroCarousel({ series }: HeroCarouselProps) {
               end={{ x: 1, y: 1 }}
               style={styles.gradient}
             >
+              <PosterArt series={item} size="hero" />
               <LinearGradient colors={gradients.scrimBottom} style={StyleSheet.absoluteFill} />
               <View style={styles.badgeRow}>
                 {item.genres.slice(0, 2).map((g) => (

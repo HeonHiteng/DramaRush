@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { colors, gradients, radius, spacing, typography } from '@/theme';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { PosterArt } from './PosterArt';
 import type { Series } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
 
@@ -57,6 +58,7 @@ export function PosterCard({
           end={{ x: 0.9, y: 1 }}
           style={styles.poster}
         >
+          <PosterArt series={series} />
           <LinearGradient colors={gradients.posterFade} style={styles.posterOverlay} />
 
           {series.isNew && (
