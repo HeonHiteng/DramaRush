@@ -96,6 +96,27 @@ On wide desktop browsers, the app renders inside a centered, phone-sized frame r
 stretching full-width — this is intentional (see `src/components/ui/WebFrame.tsx`) and only
 applies on web at viewport widths ≥ 640px.
 
+## Deploying the web build (Vercel)
+
+The web build is a static export (`web.output: "single"` in `app.json` — one `index.html` +
+client-side routing), so it deploys anywhere that serves static files. `vercel.json` is already
+configured with the build command, output directory, and the SPA rewrite rule needed so that
+refreshing on a non-root route (e.g. `/profile`) doesn't 404.
+
+1. At [vercel.com/new](https://vercel.com/new), import this GitHub repo.
+2. Add two environment variables in the project's settings — same values as your local `.env`:
+   `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+3. Deploy. Vercel runs `npm run build:web` (`expo export --platform web`) and serves the resulting
+   `dist/` folder.
+
+`package.json` pins `"engines": { "node": "22.x" }` — this repo's Metro bundler has issues on
+Node 20 (see `.tools/` below), and Vercel respects the `engines` field when picking a build image.
+If a deploy fails on Node version grounds, double-check Vercel's Project Settings → Node.js Version
+is set to 22.x explicitly.
+
+Every push to the connected branch redeploys automatically once this is set up — no CLI needed
+after the initial import.
+
 ## Demo walkthrough
 
 A reliable path to show a client everything in ~5 minutes:
