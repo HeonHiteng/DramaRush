@@ -52,4 +52,21 @@ describe('wallet: coin deduction', () => {
     await useLibraryStore.getState().unlockEpisodeWithCoins('ep-coin');
     expect(useLibraryStore.getState().isUnlocked('ep-coin')).toBe(true);
   });
+
+  it('awards coins for the daily mission and marks it claimed', async () => {
+    const awarded = await useWalletStore.getState().claimDailyMission();
+    expect(awarded).toBe(20);
+    expect(useWalletStore.getState().balance).toBe(STARTING_COIN_BALANCE + 20);
+    expect(useWalletStore.getState().dailyMissionClaimedToday).toBe(true);
+    expect(useWalletStore.getState().transactions[0]).toMatchObject({ amount: 20, type: 'reward' });
+  });
+
+  it('does not award the daily mission twice on the same day', async () => {
+    await useWalletStore.getState().claimDailyMission();
+    const balanceAfterFirst = useWalletStore.getState().balance;
+
+    const secondAward = await useWalletStore.getState().claimDailyMission();
+    expect(secondAward).toBe(0);
+    expect(useWalletStore.getState().balance).toBe(balanceAfterFirst);
+  });
 });

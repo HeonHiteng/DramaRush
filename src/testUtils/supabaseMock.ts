@@ -28,6 +28,7 @@ function defaultTables(): Record<string, Row[]> {
     watch_history: [],
     progress: [],
     recent_searches: [],
+    daily_mission_claims: [],
     episodes: [
       { id: 'ep-coin', series_id: 'series-1', number: 1, title: 'Coin Episode', access: 'coin', coin_price: 20 },
       { id: 'ep-ad', series_id: 'series-1', number: 2, title: 'Ad Episode', access: 'ad_unlock', coin_price: null },
@@ -220,6 +221,22 @@ async function rpc(name: string, params: Record<string, unknown>) {
     state.tables.unlocks.push({ user_id: userId, episode_id: episodeId });
     state.tables.transactions.unshift(makeTransaction('reward', 'Unlocked via rewarded ad', 0));
     return { data: true, error: null };
+  }
+
+  if (name === 'claim_daily_mission') {
+    const today = new Date().toISOString().slice(0, 10);
+    if (state.tables.daily_mission_claims.some((c) => c.user_id === userId && c.claim_date === today)) {
+      return { data: 0, error: null };
+    }
+    const reward = 20;
+    state.tables.daily_mission_claims.push({ user_id: userId, claim_date: today, coins_awarded: reward });
+    const wallet = state.tables.wallets.find((w) => w.user_id === userId);
+    if (wallet) {
+      wallet.balance += reward;
+      wallet.updated_at = new Date().toISOString();
+    }
+    state.tables.transactions.unshift(makeTransaction('reward', 'Daily mission: watched a rewarded ad', reward));
+    return { data: reward, error: null };
   }
 
   return { data: null, error: { message: `unknown rpc ${name}` } };

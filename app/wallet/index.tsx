@@ -10,6 +10,7 @@ import { StackHeader } from '@/components/ui/StackHeader';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppModal } from '@/components/ui/AppModal';
 import { CoinBadge } from '@/components/ui/CoinBadge';
+import { DailyMissionCard } from '@/components/ui/DailyMissionCard';
 import { TransactionRow } from '@/components/ui/TransactionRow';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { COIN_PACKAGES } from '@/data';
@@ -75,6 +76,8 @@ export default function WalletScreen() {
           <Text style={styles.balanceLabel}>Your Balance</Text>
           <CoinBadge amount={balance} size="lg" />
         </LinearGradient>
+
+        <DailyMissionCard />
 
         <Text style={styles.sectionTitle}>Coin Packages</Text>
         <View style={styles.packagesGrid}>
