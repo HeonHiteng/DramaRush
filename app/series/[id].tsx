@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { getSimilarSeries } from '@/data';
 import { useSeries, useSeriesById, useEpisodesForSeries } from '@/services/content';
 import { useLibraryStore } from '@/store';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export default function SeriesDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,6 +22,7 @@ export default function SeriesDetailScreen() {
   const toggleFavorite = useLibraryStore((s) => s.toggleFavorite);
   const unlockedEpisodeIds = useLibraryStore((s) => s.unlockedEpisodeIds);
   const progress = useLibraryStore((s) => s.progress);
+  const { t } = useTranslation();
 
   if (seriesLoading || episodesLoading) {
     return (
@@ -33,8 +35,8 @@ export default function SeriesDetailScreen() {
   if (!series) {
     return (
       <View style={styles.root}>
-        <StackHeader title="Series" />
-        <EmptyState icon="alert-circle-outline" title="Series not found" />
+        <StackHeader title={t('series.headerTitle')} />
+        <EmptyState icon="alert-circle-outline" title={t('series.notFound')} />
       </View>
     );
   }
@@ -50,10 +52,11 @@ export default function SeriesDetailScreen() {
   const hasStarted = episodes.some((ep) => progress[ep.id]);
 
   const handleShare = () => {
+    const message = t('series.shareMessage', { title: series.title });
     if (Platform.OS === 'web') {
-      alert(`Share link copied for "${series.title}" (simulated).`);
+      alert(message);
     } else {
-      Alert.alert('Share', `Share link copied for "${series.title}" (simulated).`);
+      Alert.alert(t('series.share'), message);
     }
   };
 
@@ -87,9 +90,9 @@ export default function SeriesDetailScreen() {
               <Ionicons name="star" size={12} color={colors.gold} />
               <Text style={styles.ratingText}>{series.rating.toFixed(1)}</Text>
             </View>
-            <Text style={styles.metaText}>{series.status === 'completed' ? 'Completed' : 'Ongoing'}</Text>
+            <Text style={styles.metaText}>{series.status === 'completed' ? t('series.completed') : t('series.ongoing')}</Text>
             <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.metaText}>{episodes.length} episodes</Text>
+            <Text style={styles.metaText}>{t('series.episodesCount', { count: episodes.length })}</Text>
             <Text style={styles.metaDot}>·</Text>
             <Text style={styles.metaText}>{series.language}</Text>
           </View>
@@ -105,13 +108,13 @@ export default function SeriesDetailScreen() {
           <Text style={styles.synopsis}>{series.synopsis}</Text>
 
           <View style={styles.castRow}>
-            <Text style={styles.castLabel}>Cast</Text>
+            <Text style={styles.castLabel}>{t('series.cast')}</Text>
             <Text style={styles.castText}>{series.cast.map((c) => `${c.name} as ${c.role}`).join('  ·  ')}</Text>
           </View>
 
           <View style={styles.actionsRow}>
             <AppButton
-              label={hasStarted ? 'Continue Watching' : 'Start Watching'}
+              label={hasStarted ? t('series.continueWatching') : t('series.startWatching')}
               onPress={() => nextEpisode && router.push(`/player/${nextEpisode.id}`)}
               variant="primary"
               style={styles.mainAction}
@@ -120,16 +123,16 @@ export default function SeriesDetailScreen() {
               onPress={() => toggleFavorite(series.id)}
               style={styles.iconAction}
               accessibilityRole="button"
-              accessibilityLabel={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
+              accessibilityLabel={isFavorite ? t('series.removeFromFavourites') : t('series.addToFavourites')}
             >
               <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color={isFavorite ? colors.accent : colors.textPrimary} />
             </Pressable>
-            <Pressable onPress={handleShare} style={styles.iconAction} accessibilityRole="button" accessibilityLabel="Share series">
+            <Pressable onPress={handleShare} style={styles.iconAction} accessibilityRole="button" accessibilityLabel={t('series.shareSeries')}>
               <Ionicons name="share-social-outline" size={20} color={colors.textPrimary} />
             </Pressable>
           </View>
 
-          <Text style={styles.sectionTitle}>Episodes</Text>
+          <Text style={styles.sectionTitle}>{t('series.episodes')}</Text>
           <View style={styles.episodeList}>
             {episodes.map((ep) => {
               const epProgress = progress[ep.id];
@@ -146,7 +149,7 @@ export default function SeriesDetailScreen() {
           </View>
         </View>
 
-        <SeriesRail title="Similar Series" series={similar} />
+        <SeriesRail title={t('series.similarSeries')} series={similar} />
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
     </View>

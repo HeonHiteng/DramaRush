@@ -14,6 +14,7 @@ import { router } from 'expo-router';
 import { colors, gradients, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { PosterArt } from './PosterArt';
+import { useTranslation } from '@/i18n/useTranslation';
 import type { Series } from '@/types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -27,6 +28,7 @@ interface HeroCarouselProps {
 export function HeroCarousel({ series }: HeroCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<FlatList<Series>>(null);
+  const { t } = useTranslation();
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const index = Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + spacing.md));
@@ -78,7 +80,7 @@ export function HeroCarousel({ series }: HeroCarouselProps) {
                   {item.synopsis}
                 </Text>
                 <AppButton
-                  label="Watch Now"
+                  label={t('common.watchNow')}
                   onPress={() => router.push(`/series/${item.id}`)}
                   style={styles.cta}
                 />

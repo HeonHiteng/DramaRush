@@ -4,6 +4,7 @@ import { colors, spacing, typography } from '@/theme';
 import { EpisodeRow } from '@/components/media/EpisodeRow';
 import type { Episode } from '@/types';
 import { useLibraryStore } from '@/store';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface EpisodeListSheetProps {
   seriesTitle: string;
@@ -15,11 +16,12 @@ interface EpisodeListSheetProps {
 export function EpisodeListSheet({ seriesTitle, episodes, activeEpisodeId, onSelect }: EpisodeListSheetProps) {
   const unlockedEpisodeIds = useLibraryStore((s) => s.unlockedEpisodeIds);
   const progress = useLibraryStore((s) => s.progress);
+  const { t } = useTranslation();
 
   return (
     <View style={styles.root}>
       <Text style={styles.title}>{seriesTitle}</Text>
-      <Text style={styles.subtitle}>{episodes.length} episodes</Text>
+      <Text style={styles.subtitle}>{t('series.episodesCount', { count: episodes.length })}</Text>
       <FlatList
         data={episodes}
         keyExtractor={(item) => item.id}

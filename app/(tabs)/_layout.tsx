@@ -3,8 +3,10 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { colors, typography } from '@/theme';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export default function TabsLayout() {
+  const { t } = useTranslation();
   return (
     <Tabs
       screenOptions={{
@@ -24,7 +26,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: t('tab.home'),
           tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} />,
           tabBarAccessibilityLabel: 'Home tab',
         }}
@@ -32,7 +34,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="discover"
         options={{
-          title: 'Discover',
+          title: t('tab.discover'),
           tabBarIcon: ({ color, size }) => <Ionicons name="compass" color={color} size={size} />,
           tabBarAccessibilityLabel: 'Discover tab',
         }}
@@ -40,7 +42,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="search"
         options={{
-          title: 'Search',
+          title: t('tab.search'),
           tabBarIcon: ({ color, size }) => <Ionicons name="search" color={color} size={size} />,
           tabBarAccessibilityLabel: 'Search tab',
         }}
@@ -48,7 +50,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="library"
         options={{
-          title: 'Library',
+          title: t('tab.library'),
           tabBarIcon: ({ color, size }) => <Ionicons name="bookmark" color={color} size={size} />,
           tabBarAccessibilityLabel: 'Library tab',
         }}
@@ -56,7 +58,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('tab.profile'),
           tabBarIcon: ({ color, size }) => <Ionicons name="person-circle" color={color} size={size} />,
           tabBarAccessibilityLabel: 'Profile tab',
         }}

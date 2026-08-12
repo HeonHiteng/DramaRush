@@ -20,11 +20,13 @@ import {
 } from '@/data';
 import { useSeries, useEpisodes } from '@/services/content';
 import { useContinueWatching } from '@/hooks/useContinueWatching';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export default function HomeScreen() {
   const seriesQuery = useSeries();
   const episodesQuery = useEpisodes();
   const continueWatching = useContinueWatching();
+  const { t } = useTranslation();
 
   const loading = seriesQuery.isLoading || episodesQuery.isLoading;
   const series = seriesQuery.data ?? [];
@@ -74,7 +76,7 @@ export default function HomeScreen() {
 
         {continueWatching.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Continue Watching</Text>
+            <Text style={styles.sectionTitle}>{t('home.continueWatching')}</Text>
             <FlatList
               data={continueWatching}
               horizontal
@@ -96,11 +98,11 @@ export default function HomeScreen() {
 
         <MembershipBanner />
 
-        <SeriesRail title="Trending Now" series={getTrendingNow(series)} />
-        <SeriesRail title="New Releases" series={getNewReleases(series)} />
-        <SeriesRail title="Recommended for You" series={getRecommendedForYou(series)} />
-        <SeriesRail title="Free to Watch" series={getFreeToWatch(series, episodes)} />
-        <SeriesRail title="Completed Series" series={getCompletedSeries(series)} />
+        <SeriesRail title={t('home.trendingNow')} series={getTrendingNow(series)} />
+        <SeriesRail title={t('home.newReleases')} series={getNewReleases(series)} />
+        <SeriesRail title={t('home.recommendedForYou')} series={getRecommendedForYou(series)} />
+        <SeriesRail title={t('home.freeToWatch')} series={getFreeToWatch(series, episodes)} />
+        <SeriesRail title={t('home.completedSeries')} series={getCompletedSeries(series)} />
 
         {GENRES.map((genre) => {
           const list = getSeriesByGenre(series, genre);
@@ -115,6 +117,7 @@ export default function HomeScreen() {
 }
 
 function MembershipBanner() {
+  const { t } = useTranslation();
   return (
     <Pressable
       onPress={() => router.push('/subscription')}
@@ -129,9 +132,9 @@ function MembershipBanner() {
         style={styles.banner}
       >
         <View style={styles.bannerTextWrap}>
-          <Text style={styles.bannerEyebrow}>DRAMARUSH MEMBERSHIP</Text>
-          <Text style={styles.bannerTitle}>Unlock every episode, ad-free</Text>
-          <Text style={styles.bannerSubtitle}>Plus monthly bonus coins &amp; early access</Text>
+          <Text style={styles.bannerEyebrow}>{t('home.membershipBannerEyebrow', { brand: BRAND.name.toUpperCase() })}</Text>
+          <Text style={styles.bannerTitle}>{t('home.membershipBannerTitle')}</Text>
+          <Text style={styles.bannerSubtitle}>{t('home.membershipBannerSubtitle')}</Text>
         </View>
         <Ionicons name="diamond" size={40} color="rgba(255,255,255,0.85)" />
       </LinearGradient>

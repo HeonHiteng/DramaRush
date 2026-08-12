@@ -18,6 +18,7 @@ import { useWalletStore } from '@/store';
 import { BRAND } from '@/config';
 import type { CoinPackage } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useTranslation } from '@/i18n/useTranslation';
 
 type ModalState = 'confirm' | 'processing' | 'success';
 
@@ -29,6 +30,7 @@ export default function WalletScreen() {
   const [selectedPackage, setSelectedPackage] = useState<CoinPackage | null>(null);
   const [modalState, setModalState] = useState<ModalState>('confirm');
   const { success: successHaptic } = useHaptics();
+  const { t } = useTranslation();
 
   const checkScale = useSharedValue(0);
 
@@ -60,26 +62,26 @@ export default function WalletScreen() {
   const closeModal = () => setSelectedPackage(null);
 
   const handleRestore = () => {
-    const message = 'No previous purchases found for this device (simulated).';
+    const message = t('wallet.restorePurchasesMessage');
     if (Platform.OS === 'web') {
       alert(message);
     } else {
-      Alert.alert('Restore Purchases', message);
+      Alert.alert(t('wallet.restorePurchases'), message);
     }
   };
 
   return (
     <Screen>
-      <StackHeader title="Wallet" />
+      <StackHeader title={t('wallet.title')} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={gradients.premiumBanner} style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Your Balance</Text>
+          <Text style={styles.balanceLabel}>{t('wallet.yourBalance')}</Text>
           <CoinBadge amount={balance} size="lg" />
         </LinearGradient>
 
         <DailyMissionCard />
 
-        <Text style={styles.sectionTitle}>Coin Packages</Text>
+        <Text style={styles.sectionTitle}>{t('wallet.coinPackages')}</Text>
         <View style={styles.packagesGrid}>
           {COIN_PACKAGES.map((pkg) => (
             <Pressable
@@ -96,24 +98,26 @@ export default function WalletScreen() {
               )}
               <Text style={styles.packageIcon}>{BRAND.currency.coinSymbol}</Text>
               <Text style={styles.packageCoins}>{pkg.coins.toLocaleString()}</Text>
-              {pkg.bonusCoins > 0 && <Text style={styles.packageBonus}>+{pkg.bonusCoins} bonus</Text>}
+              {pkg.bonusCoins > 0 && (
+                <Text style={styles.packageBonus}>{t('wallet.bonusSuffix', { bonus: pkg.bonusCoins })}</Text>
+              )}
               <Text style={styles.packagePrice}>{pkg.priceLabel}</Text>
             </Pressable>
           ))}
         </View>
 
         <View style={styles.linkRow}>
-          <AppButton label="Restore Purchases" onPress={handleRestore} variant="ghost" style={styles.linkButton} />
-          <AppButton label="Help" onPress={() => router.push('/settings/help')} variant="ghost" style={styles.linkButton} />
+          <AppButton label={t('wallet.restorePurchases')} onPress={handleRestore} variant="ghost" style={styles.linkButton} />
+          <AppButton label={t('wallet.help')} onPress={() => router.push('/settings/help')} variant="ghost" style={styles.linkButton} />
         </View>
 
-        <Text style={styles.sectionTitle}>Transaction History</Text>
+        <Text style={styles.sectionTitle}>{t('wallet.transactionHistory')}</Text>
         {transactions.length === 0 ? (
-          <EmptyState icon="receipt-outline" title="No transactions yet" subtitle="Purchases and unlocks will appear here." />
+          <EmptyState icon="receipt-outline" title={t('wallet.emptyTransactionsTitle')} subtitle={t('wallet.emptyTransactionsSubtitle')} />
         ) : (
           <View style={styles.historyList}>
-            {transactions.map((t) => (
-              <TransactionRow key={t.id} transaction={t} />
+            {transactions.map((txn) => (
+              <TransactionRow key={txn.id} transaction={txn} />
             ))}
           </View>
         )}
@@ -122,20 +126,28 @@ export default function WalletScreen() {
       <AppModal visible={!!selectedPackage} onClose={closeModal}>
         {selectedPackage && modalState === 'confirm' && (
           <>
-            <Text style={styles.modalTitle}>Confirm purchase</Text>
+            <Text style={styles.modalTitle}>{t('wallet.confirmPurchaseTitle')}</Text>
             <Text style={styles.modalBody}>
-              Buy {selectedPackage.coins.toLocaleString()} {BRAND.currency.coinNamePlural.toLowerCase()}
-              {selectedPackage.bonusCoins > 0 ? ` + ${selectedPackage.bonusCoins} bonus` : ''} for{' '}
-              {selectedPackage.priceLabel}?
+              {t('wallet.buyCoinsFor', {
+                coins: selectedPackage.coins.toLocaleString(),
+                unit: BRAND.currency.coinNamePlural.toLowerCase(),
+                bonus: selectedPackage.bonusCoins > 0 ? ` ${t('wallet.bonusSuffix', { bonus: selectedPackage.bonusCoins })}` : '',
+                price: selectedPackage.priceLabel,
+              })}
             </Text>
-            <AppButton label={`Confirm · ${selectedPackage.priceLabel}`} onPress={confirmPurchase} fullWidth style={styles.modalAction} />
-            <AppButton label="Cancel" onPress={closeModal} variant="ghost" fullWidth />
+            <AppButton
+              label={t('wallet.confirmPrice', { price: selectedPackage.priceLabel })}
+              onPress={confirmPurchase}
+              fullWidth
+              style={styles.modalAction}
+            />
+            <AppButton label={t('common.cancel')} onPress={closeModal} variant="ghost" fullWidth />
           </>
         )}
         {selectedPackage && modalState === 'processing' && (
           <View style={styles.processingWrap}>
-            <Text style={styles.modalTitle}>Processing…</Text>
-            <Text style={styles.modalBody}>Simulating payment (prototype only, no real charge).</Text>
+            <Text style={styles.modalTitle}>{t('wallet.processing')}</Text>
+            <Text style={styles.modalBody}>{t('wallet.processingBody')}</Text>
           </View>
         )}
         {selectedPackage && modalState === 'success' && (
@@ -144,9 +156,9 @@ export default function WalletScreen() {
               <Ionicons name="checkmark" size={32} color={colors.textInverse} />
             </Animated.View>
             <Text style={styles.modalTitle}>
-              +{selectedPackage.coins + selectedPackage.bonusCoins} coins added
+              {t('wallet.coinsAdded', { amount: selectedPackage.coins + selectedPackage.bonusCoins })}
             </Text>
-            <AppButton label="Done" onPress={closeModal} fullWidth style={styles.modalAction} />
+            <AppButton label={t('wallet.done')} onPress={closeModal} fullWidth style={styles.modalAction} />
           </View>
         )}
       </AppModal>

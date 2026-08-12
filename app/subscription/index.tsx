@@ -12,14 +12,17 @@ import { BRAND } from '@/config';
 import { formatDateLong } from '@/utils/format';
 import { goBack } from '@/utils/navigation';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useTranslation } from '@/i18n/useTranslation';
+import type { TranslationKey } from '@/i18n/translations';
 import type { SubscriptionPlanId } from '@/types';
 
-const BENEFITS = [
-  { icon: 'diamond' as const, label: 'Access to every premium episode' },
-  { icon: 'ban' as const, label: 'Fewer advertisements while browsing' },
-  { icon: 'sparkles' as const, label: 'Monthly bonus coins added automatically' },
-  { icon: 'flash' as const, label: 'Early access to selected new series' },
-  { icon: 'ribbon' as const, label: 'A premium badge on your profile' },
+const BENEFIT_ICONS = ['diamond', 'ban', 'sparkles', 'flash', 'ribbon'] as const;
+const BENEFIT_KEYS: TranslationKey[] = [
+  'subscription.benefit1',
+  'subscription.benefit2',
+  'subscription.benefit3',
+  'subscription.benefit4',
+  'subscription.benefit5',
 ];
 
 export default function SubscriptionScreen() {
@@ -29,6 +32,7 @@ export default function SubscriptionScreen() {
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const { success: successHaptic } = useHaptics();
+  const { t } = useTranslation();
 
   const plan = SUBSCRIPTION_PLANS.find((p) => p.id === selectedPlan)!;
 
@@ -49,36 +53,36 @@ export default function SubscriptionScreen() {
       doCancel();
       return;
     }
-    Alert.alert('Cancel Membership', 'Your premium access will end immediately in this prototype.', [
-      { text: 'Keep Membership', style: 'cancel' },
-      { text: 'Cancel Membership', style: 'destructive', onPress: doCancel },
+    Alert.alert(t('subscription.cancelConfirmTitle'), t('subscription.cancelConfirmBody'), [
+      { text: t('subscription.keepMembership'), style: 'cancel' },
+      { text: t('subscription.cancelMembership'), style: 'destructive', onPress: doCancel },
     ]);
   };
 
   const handleRestore = () => {
-    const message = 'No previous subscription found for this device (simulated).';
+    const message = t('subscription.restorePurchasesMessage');
     if (Platform.OS === 'web') {
       alert(message);
     } else {
-      Alert.alert('Restore Purchases', message);
+      Alert.alert(t('subscription.restorePurchases'), message);
     }
   };
 
   if (success || subscription.isActive) {
     return (
       <Screen>
-        <StackHeader title="Membership" />
+        <StackHeader title={t('subscription.title')} />
         <View style={styles.successRoot}>
           <View style={styles.successCircle}>
             <Ionicons name="diamond" size={36} color={colors.textInverse} />
           </View>
-          <Text style={styles.successTitle}>You&apos;re a {BRAND.name} member!</Text>
+          <Text style={styles.successTitle}>{t('subscription.memberBadge', { brand: BRAND.name })}</Text>
           <Text style={styles.successBody}>
-            {subscription.planId === 'annual' ? 'Annual' : 'Monthly'} membership is active
-            {subscription.renewsAt ? ` and renews on ${formatDateLong(subscription.renewsAt)}.` : '.'}
+            {t('subscription.membershipActive', { plan: subscription.planId === 'annual' ? t('profile.annual') : t('profile.monthly') })}
+            {subscription.renewsAt ? t('subscription.renewsOn', { date: formatDateLong(subscription.renewsAt) }) : '.'}
           </Text>
-          <AppButton label="Back to Browsing" onPress={() => goBack()} fullWidth style={styles.successAction} />
-          <AppButton label="Cancel Membership" onPress={cancelMembership} variant="ghost" fullWidth />
+          <AppButton label={t('subscription.backToBrowsing')} onPress={() => goBack()} fullWidth style={styles.successAction} />
+          <AppButton label={t('subscription.cancelMembership')} onPress={cancelMembership} variant="ghost" fullWidth />
         </View>
       </Screen>
     );
@@ -86,9 +90,9 @@ export default function SubscriptionScreen() {
 
   return (
     <Screen>
-      <StackHeader title="Membership" />
+      <StackHeader title={t('subscription.title')} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.heading}>Unlock the full {BRAND.name} experience</Text>
+        <Text style={styles.heading}>{t('subscription.heading', { brand: BRAND.name })}</Text>
 
         <View style={styles.plansRow}>
           {SUBSCRIPTION_PLANS.map((p) => (
@@ -97,29 +101,28 @@ export default function SubscriptionScreen() {
         </View>
 
         <View style={styles.benefitsCard}>
-          {BENEFITS.map((b) => (
-            <View key={b.label} style={styles.benefitRow}>
+          {BENEFIT_KEYS.map((key, i) => (
+            <View key={key} style={styles.benefitRow}>
               <View style={styles.benefitIconWrap}>
-                <Ionicons name={b.icon} size={16} color={colors.gold} />
+                <Ionicons name={BENEFIT_ICONS[i]} size={16} color={colors.gold} />
               </View>
-              <Text style={styles.benefitText}>{b.label}</Text>
+              <Text style={styles.benefitText}>{t(key)}</Text>
             </View>
           ))}
         </View>
 
         <AppButton
-          label={`Start Membership · ${plan.priceLabel}`}
+          label={t('subscription.startMembershipPrice', { price: plan.priceLabel })}
           onPress={startMembership}
           loading={processing}
           fullWidth
           size="lg"
           style={styles.startAction}
         />
-        <AppButton label="Restore Purchases" onPress={handleRestore} variant="ghost" fullWidth />
+        <AppButton label={t('subscription.restorePurchases')} onPress={handleRestore} variant="ghost" fullWidth />
 
         <Text style={styles.disclosure}>
-          This is a prototype: no payment is collected. In a production app, membership would auto-renew at{' '}
-          {plan.priceLabel} {plan.periodLabel} until cancelled, in line with app store subscription policies.
+          {t('subscription.disclosure', { price: plan.priceLabel, period: plan.periodLabel })}
         </Text>
       </ScrollView>
     </Screen>

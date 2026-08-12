@@ -8,6 +8,7 @@ import { colors, typography } from '@/theme';
 import { VideoControls } from '@/components/media/VideoControls';
 import type { Episode } from '@/types';
 import { useLibraryStore, useSettingsStore } from '@/store';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const SPEED_STEPS = [1, 1.25, 1.5, 2, 0.75];
 const AUTOPLAY_COUNTDOWN_SEC = 5;
@@ -53,6 +54,7 @@ export function PlayerPage({
   const recordHistory = useLibraryStore((s) => s.recordHistory);
   const autoplayNextEpisode = useSettingsStore((s) => s.autoplayNextEpisode);
   const defaultSubtitlesEnabled = useSettingsStore((s) => s.subtitlesEnabled);
+  const { t } = useTranslation();
 
   const [controlsVisible, setControlsVisible] = useState(true);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(defaultSubtitlesEnabled);
@@ -176,19 +178,19 @@ export function PlayerPage({
           allowsPictureInPicture={false}
         />
       ) : (
-        <LockedPoster episodeNumber={episode.number} episodeTitle={episode.title} />
+        <LockedPoster episodeNumber={episode.number} episodeTitle={episode.title} lockedTitle={t('player.lockedTitle', { number: episode.number })} />
       )}
 
       <Pressable
         style={StyleSheet.absoluteFill}
         onPress={() => setControlsVisible((v) => !v)}
         accessibilityRole="button"
-        accessibilityLabel={isPlaying ? 'Pause video' : 'Play video'}
+        accessibilityLabel={isPlaying ? t('player.pauseVideo') : t('player.playVideo')}
       />
 
       {isUnlocked && subtitlesEnabled && (
         <View style={[styles.subtitleWrap, { bottom: height * 0.18, pointerEvents: 'none' }]}>
-          <Text style={styles.subtitleText}>[ Prototype subtitles placeholder ]</Text>
+          <Text style={styles.subtitleText}>{t('player.subtitlePlaceholder')}</Text>
         </View>
       )}
 
@@ -224,13 +226,13 @@ export function PlayerPage({
   );
 }
 
-function LockedPoster({ episodeNumber, episodeTitle }: { episodeNumber: number; episodeTitle: string }) {
+function LockedPoster({ lockedTitle, episodeTitle }: { episodeNumber: number; episodeTitle: string; lockedTitle: string }) {
   return (
     <LinearGradient colors={['#241A2C', '#120E17']} style={styles.lockedRoot}>
       <View style={styles.lockedIconCircle}>
         <Ionicons name="lock-closed" size={28} color={colors.gold} />
       </View>
-      <Text style={styles.lockedTitle}>Episode {episodeNumber} is locked</Text>
+      <Text style={styles.lockedTitle}>{lockedTitle}</Text>
       <Text style={styles.lockedSubtitle} numberOfLines={2}>
         {episodeTitle}
       </Text>

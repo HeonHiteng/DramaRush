@@ -11,6 +11,8 @@ import { EpisodeListSheet } from '@/features/player/EpisodeListSheet';
 import { useEpisodeById, useEpisodesForSeries, useSeriesById } from '@/services/content';
 import { useLibraryStore, useSubscriptionStore, useWalletStore } from '@/store';
 import { goBack } from '@/utils/navigation';
+import { useTranslation } from '@/i18n/useTranslation';
+import { BRAND } from '@/config';
 import type { Episode } from '@/types';
 
 export default function PlayerScreen() {
@@ -38,6 +40,7 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
   const redeemAdReward = useLibraryStore((s) => s.redeemAdReward);
   const balance = useWalletStore((s) => s.balance);
   const isSubscriber = useSubscriptionStore((s) => s.isActive);
+  const { t } = useTranslation();
 
   if (episodeLoading || seriesLoading || episodesLoading) {
     return (
@@ -50,7 +53,7 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
   if (!initialEpisode || !series || episodes.length === 0) {
     return (
       <View style={styles.notFoundRoot}>
-        <EmptyState icon="alert-circle-outline" title="Episode not found" actionLabel="Go Back" onAction={() => goBack()} />
+        <EmptyState icon="alert-circle-outline" title={t('player.episodeNotFound')} actionLabel={t('player.goBack')} onAction={() => goBack()} />
       </View>
     );
   }
@@ -62,20 +65,20 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
   };
 
   const handleShare = () => {
-    const message = `Check out "${series.title}" on DramaRush (simulated share).`;
+    const message = t('player.shareMessage', { title: series.title, brand: BRAND.name });
     if (Platform.OS === 'web') {
       alert(message);
     } else {
-      Alert.alert('Share', message);
+      Alert.alert(t('player.share'), message);
     }
   };
 
   const handleRestorePurchases = () => {
-    const message = 'No previous purchases found for this device (simulated).';
+    const message = t('wallet.restorePurchasesMessage');
     if (Platform.OS === 'web') {
       alert(message);
     } else {
-      Alert.alert('Restore Purchases', message);
+      Alert.alert(t('wallet.restorePurchases'), message);
     }
   };
 

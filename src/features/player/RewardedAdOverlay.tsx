@@ -6,6 +6,7 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { BRAND } from '@/config';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const AD_DURATION_SEC = 5;
 
@@ -19,6 +20,7 @@ export function RewardedAdOverlay({ visible, onRewardEarned, onClose }: Rewarded
   const [secondsLeft, setSecondsLeft] = useState(AD_DURATION_SEC);
   const [rewardGranted, setRewardGranted] = useState(false);
   const { success } = useHaptics();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!visible) {
@@ -58,15 +60,13 @@ export function RewardedAdOverlay({ visible, onRewardEarned, onClose }: Rewarded
     >
       <LinearGradient colors={['#1A2B3C', '#0E1620']} style={styles.root}>
         <View style={styles.prototypeTag}>
-          <Text style={styles.prototypeTagText}>SIMULATED ADVERTISEMENT — PROTOTYPE ONLY</Text>
+          <Text style={styles.prototypeTagText}>{t('ad.prototypeTag')}</Text>
         </View>
 
         <View style={styles.adCard}>
           <Ionicons name="megaphone" size={48} color={colors.info} />
-          <Text style={styles.adBrand}>{BRAND.name} Partner Spotlight</Text>
-          <Text style={styles.adCopy}>
-            This is a placeholder rewarded-ad experience used only to demonstrate the unlock flow.
-          </Text>
+          <Text style={styles.adBrand}>{t('ad.partnerSpotlight', { brand: BRAND.name })}</Text>
+          <Text style={styles.adCopy}>{t('ad.copy')}</Text>
         </View>
 
         {!rewardGranted ? (
@@ -74,15 +74,15 @@ export function RewardedAdOverlay({ visible, onRewardEarned, onClose }: Rewarded
             <View style={styles.countdownCircle}>
               <Text style={styles.countdownText}>{secondsLeft}</Text>
             </View>
-            <Text style={styles.footerHint}>Reward unlocks when the countdown ends</Text>
+            <Text style={styles.footerHint}>{t('ad.rewardHint')}</Text>
           </View>
         ) : (
           <View style={styles.footer}>
             <View style={styles.rewardBadge}>
               <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-              <Text style={styles.rewardText}>Reward earned!</Text>
+              <Text style={styles.rewardText}>{t('ad.rewardEarned')}</Text>
             </View>
-            <AppButton label="Close" onPress={onClose} variant="secondary" style={styles.closeButton} />
+            <AppButton label={t('ad.close')} onPress={onClose} variant="secondary" style={styles.closeButton} />
           </View>
         )}
       </LinearGradient>

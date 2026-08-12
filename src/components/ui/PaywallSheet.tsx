@@ -9,6 +9,7 @@ import { CoinBadge } from './CoinBadge';
 import type { Episode } from '@/types';
 import { BRAND } from '@/config';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface PaywallSheetProps {
   visible: boolean;
@@ -44,6 +45,7 @@ export function PaywallSheet({
   const [status, setStatus] = useState<Status>('idle');
   const { success: successHaptic, impact } = useHaptics();
   const checkScale = useSharedValue(0);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (visible) setStatus('idle');
@@ -72,18 +74,13 @@ export function PaywallSheet({
       <BottomSheet visible={visible} onClose={onClose}>
         <View style={styles.header}>
           <Ionicons name="star" size={22} color={colors.gold} />
-          <Text style={styles.headerTitle}>Members-only episode</Text>
+          <Text style={styles.headerTitle}>{t('paywall.membersOnlyTitle')}</Text>
         </View>
         <Text style={styles.episodeTitle}>{seriesTitle}</Text>
-        <Text style={styles.episodeSubtitle}>
-          Episode {episode.number} · {episode.title}
-        </Text>
-        <Text style={styles.body}>
-          This episode is exclusive to DramaRush members. Join to unlock it instantly along with every other
-          subscriber-only title.
-        </Text>
-        <AppButton label="View Membership" onPress={onViewMembership} variant="gold" fullWidth style={styles.primaryAction} />
-        <AppButton label="Restore Purchases" onPress={onRestorePurchases} variant="ghost" fullWidth style={styles.secondaryAction} />
+        <Text style={styles.episodeSubtitle}>{t('paywall.episodeMeta', { number: episode.number, title: episode.title })}</Text>
+        <Text style={styles.body}>{t('paywall.membersOnlyBody', { brand: BRAND.name })}</Text>
+        <AppButton label={t('paywall.viewMembership')} onPress={onViewMembership} variant="gold" fullWidth style={styles.primaryAction} />
+        <AppButton label={t('wallet.restorePurchases')} onPress={onRestorePurchases} variant="ghost" fullWidth style={styles.secondaryAction} />
       </BottomSheet>
     );
   }
@@ -95,22 +92,20 @@ export function PaywallSheet({
           <Animated.View style={[styles.successCircle, checkStyle]}>
             <Ionicons name="checkmark" size={36} color={colors.textInverse} />
           </Animated.View>
-          <Text style={styles.successTitle}>Episode unlocked!</Text>
-          <Text style={styles.body}>Enjoy episode {episode.number}.</Text>
+          <Text style={styles.successTitle}>{t('paywall.unlockedTitle')}</Text>
+          <Text style={styles.body}>{t('paywall.enjoyEpisode', { number: episode.number })}</Text>
         </View>
       ) : (
         <>
           <View style={styles.header}>
             <Ionicons name="lock-closed" size={20} color={colors.gold} />
-            <Text style={styles.headerTitle}>Unlock this episode</Text>
+            <Text style={styles.headerTitle}>{t('paywall.unlockTitle')}</Text>
           </View>
           <Text style={styles.episodeTitle}>{seriesTitle}</Text>
-          <Text style={styles.episodeSubtitle}>
-            Episode {episode.number} · {episode.title}
-          </Text>
+          <Text style={styles.episodeSubtitle}>{t('paywall.episodeMeta', { number: episode.number, title: episode.title })}</Text>
 
           <View style={styles.balanceRow}>
-            <Text style={styles.balanceLabel}>Your balance</Text>
+            <Text style={styles.balanceLabel}>{t('wallet.yourBalance')}</Text>
             <CoinBadge amount={coinBalance} />
           </View>
 
@@ -118,14 +113,14 @@ export function PaywallSheet({
             <View style={styles.warningBox}>
               <Ionicons name="alert-circle" size={16} color={colors.danger} />
               <Text style={styles.warningText}>
-                Not enough {BRAND.currency.coinNamePlural.toLowerCase()}. Top up your wallet or watch an ad instead.
+                {t('paywall.insufficientBalance', { unit: BRAND.currency.coinNamePlural.toLowerCase() })}
               </Text>
             </View>
           )}
 
           {episode.access === 'coin' && (
             <AppButton
-              label={`Unlock for ${episode.coinPrice ?? 0} ${BRAND.currency.coinSymbol}`}
+              label={t('paywall.unlockForPrice', { price: episode.coinPrice ?? 0, symbol: BRAND.currency.coinSymbol })}
               onPress={handleUnlock}
               loading={status === 'processing'}
               variant="primary"
@@ -136,7 +131,7 @@ export function PaywallSheet({
 
           {episode.access === 'ad_unlock' && (
             <AppButton
-              label="Watch Advertisement (Free)"
+              label={t('paywall.watchAdFree')}
               onPress={onWatchAd}
               variant="primary"
               fullWidth
@@ -146,15 +141,11 @@ export function PaywallSheet({
           )}
 
           <View style={styles.linkRow}>
-            <AppButton label="View Coin Packages" onPress={onViewCoinPackages} variant="ghost" style={styles.linkButton} />
-            <AppButton label="View Membership" onPress={onViewMembership} variant="ghost" style={styles.linkButton} />
+            <AppButton label={t('paywall.viewCoinPackages')} onPress={onViewCoinPackages} variant="ghost" style={styles.linkButton} />
+            <AppButton label={t('paywall.viewMembership')} onPress={onViewMembership} variant="ghost" style={styles.linkButton} />
           </View>
-          <AppButton label="Restore Purchases" onPress={onRestorePurchases} variant="ghost" fullWidth />
-          {isSubscriber && (
-            <Text style={styles.memberHint}>
-              You&apos;re a member — some episodes are already included with your plan.
-            </Text>
-          )}
+          <AppButton label={t('wallet.restorePurchases')} onPress={onRestorePurchases} variant="ghost" fullWidth />
+          {isSubscriber && <Text style={styles.memberHint}>{t('paywall.memberHint')}</Text>}
         </>
       )}
     </BottomSheet>

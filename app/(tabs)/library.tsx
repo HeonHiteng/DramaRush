@@ -11,9 +11,11 @@ import { useSeries, useEpisodes } from '@/services/content';
 import { useLibraryStore } from '@/store';
 import { useContinueWatching } from '@/hooks/useContinueWatching';
 import { formatRelativeDate } from '@/utils/format';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export default function LibraryScreen() {
   const continueWatching = useContinueWatching();
+  const { t } = useTranslation();
   const { data: allSeries = [] } = useSeries();
   const { data: allEpisodes = [] } = useEpisodes();
   const favoriteSeriesIds = useLibraryStore((s) => s.favoriteSeriesIds);
@@ -46,12 +48,12 @@ export default function LibraryScreen() {
   if (!hasAnything) {
     return (
       <Screen>
-        <Text style={styles.header}>Library</Text>
+        <Text style={styles.header}>{t('library.title')}</Text>
         <EmptyState
           icon="bookmark-outline"
-          title="Your library is empty"
-          subtitle="Favourite a series or start an episode to see it here."
-          actionLabel="Discover Series"
+          title={t('library.emptyTitle')}
+          subtitle={t('library.emptySubtitle')}
+          actionLabel={t('library.discoverSeries')}
           onAction={() => router.push('/discover')}
         />
       </Screen>
@@ -61,10 +63,10 @@ export default function LibraryScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.header}>Library</Text>
+        <Text style={styles.header}>{t('library.title')}</Text>
 
         {continueWatching.length > 0 && (
-          <Section title="Continue Watching">
+          <Section title={t('home.continueWatching')}>
             <FlatList
               data={continueWatching}
               horizontal
@@ -85,7 +87,7 @@ export default function LibraryScreen() {
         )}
 
         {favoriteSeries.length > 0 && (
-          <Section title="Favourites">
+          <Section title={t('library.favourites')}>
             {favoriteSeries.map((series) => (
               <RowItem
                 key={series.id}
@@ -102,7 +104,7 @@ export default function LibraryScreen() {
         )}
 
         {unlockedSeries.length > 0 && (
-          <Section title="Unlocked Series">
+          <Section title={t('library.unlockedSeries')}>
             <FlatList
               data={unlockedSeries}
               horizontal
@@ -117,8 +119,8 @@ export default function LibraryScreen() {
 
         {history.length > 0 && (
           <Section
-            title="Watch History"
-            action={{ label: 'Clear all', onPress: clearHistory }}
+            title={t('library.watchHistory')}
+            action={{ label: t('library.clearAll'), onPress: clearHistory }}
           >
             {history.slice(0, 30).map((entry) => {
               const episode = episodeById.get(entry.episodeId);

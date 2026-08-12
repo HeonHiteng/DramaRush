@@ -7,6 +7,7 @@ import { AppButton } from '@/components/ui/AppButton';
 import { RewardedAdOverlay } from '@/features/player/RewardedAdOverlay';
 import { useWalletStore } from '@/store';
 import { BRAND } from '@/config';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const DAILY_MISSION_REWARD = 20;
 
@@ -16,6 +17,7 @@ export function DailyMissionCard() {
   const [adVisible, setAdVisible] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   const handleRewardEarned = async () => {
     setClaiming(true);
@@ -23,7 +25,7 @@ export function DailyMissionCard() {
     const awarded = await claimDailyMission();
     setClaiming(false);
     if (awarded === 0 && !useWalletStore.getState().dailyMissionClaimedToday) {
-      setError("Couldn't claim your reward — check your connection and try again.");
+      setError(t('wallet.dailyMissionError'));
     }
   };
 
@@ -34,16 +36,16 @@ export function DailyMissionCard() {
           <Ionicons name={claimedToday ? 'checkmark-circle' : 'play-circle'} size={28} color={colors.success} />
         </View>
         <View style={styles.textWrap}>
-          <Text style={styles.title}>Daily Mission</Text>
+          <Text style={styles.title}>{t('wallet.dailyMission')}</Text>
           <Text style={styles.subtitle}>
             {claimedToday
-              ? 'Come back tomorrow for more free coins.'
-              : `Watch a short ad, earn ${DAILY_MISSION_REWARD} ${BRAND.currency.coinSymbol} free.`}
+              ? t('wallet.dailyMissionSubtitleClaimed')
+              : t('wallet.dailyMissionSubtitleAvailable', { reward: DAILY_MISSION_REWARD, symbol: BRAND.currency.coinSymbol })}
           </Text>
           {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
         <AppButton
-          label={claimedToday ? 'Claimed' : 'Watch Ad'}
+          label={claimedToday ? t('wallet.claimed') : t('wallet.watchAd')}
           onPress={() => setAdVisible(true)}
           variant={claimedToday ? 'ghost' : 'gold'}
           disabled={claimedToday}

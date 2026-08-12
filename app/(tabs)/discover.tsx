@@ -10,16 +10,18 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { GridSkeleton } from '@/components/ui/LoadingSkeleton';
 import { GENRES } from '@/data';
 import { useSeries, useEpisodes } from '@/services/content';
+import { useTranslation } from '@/i18n/useTranslation';
+import type { TranslationKey } from '@/i18n/translations';
 import type { Episode, Series } from '@/types';
 
 type AccessFilter = 'all' | 'free' | 'premium';
 type StatusFilter = 'all' | 'ongoing' | 'completed';
 type SortMode = 'popularity' | 'rating' | 'newest';
 
-const SORT_LABELS: Record<SortMode, string> = {
-  popularity: 'Popularity',
-  rating: 'Top Rated',
-  newest: 'Newest',
+const SORT_LABEL_KEYS: Record<SortMode, TranslationKey> = {
+  popularity: 'discover.sortPopularity',
+  rating: 'discover.sortTopRated',
+  newest: 'discover.sortNewest',
 };
 const SORT_ORDER: SortMode[] = ['popularity', 'rating', 'newest'];
 
@@ -39,6 +41,7 @@ export default function DiscoverScreen() {
   const [status, setStatus] = useState<StatusFilter>('all');
   const [language, setLanguage] = useState<string | null>(null);
   const [sort, setSort] = useState<SortMode>('popularity');
+  const { t } = useTranslation();
 
   const loading = seriesLoading || episodesLoading;
   const allSeries = series ?? EMPTY_SERIES;
@@ -81,37 +84,37 @@ export default function DiscoverScreen() {
 
   return (
     <Screen>
-      <Text style={styles.header}>Discover</Text>
+      <Text style={styles.header}>{t('discover.title')}</Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chipRowContent}>
-        <GenreChip label="All Genres" selected={genre === null} onPress={() => setGenre(null)} />
+        <GenreChip label={t('discover.allGenres')} selected={genre === null} onPress={() => setGenre(null)} />
         {GENRES.map((g) => (
           <GenreChip key={g} label={g} selected={genre === g} onPress={() => setGenre(genre === g ? null : g)} />
         ))}
       </ScrollView>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chipRowContent}>
-        <GenreChip label="Any Access" selected={access === 'all'} onPress={() => setAccess('all')} />
-        <GenreChip label="Free" selected={access === 'free'} onPress={() => setAccess('free')} />
-        <GenreChip label="Premium" selected={access === 'premium'} onPress={() => setAccess('premium')} />
+        <GenreChip label={t('discover.anyAccess')} selected={access === 'all'} onPress={() => setAccess('all')} />
+        <GenreChip label={t('discover.free')} selected={access === 'free'} onPress={() => setAccess('free')} />
+        <GenreChip label={t('discover.premium')} selected={access === 'premium'} onPress={() => setAccess('premium')} />
         <View style={styles.chipDivider} />
-        <GenreChip label="Any Status" selected={status === 'all'} onPress={() => setStatus('all')} />
-        <GenreChip label="Ongoing" selected={status === 'ongoing'} onPress={() => setStatus('ongoing')} />
-        <GenreChip label="Completed" selected={status === 'completed'} onPress={() => setStatus('completed')} />
+        <GenreChip label={t('discover.anyStatus')} selected={status === 'all'} onPress={() => setStatus('all')} />
+        <GenreChip label={t('discover.ongoing')} selected={status === 'ongoing'} onPress={() => setStatus('ongoing')} />
+        <GenreChip label={t('discover.completed')} selected={status === 'completed'} onPress={() => setStatus('completed')} />
       </ScrollView>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chipRowContent}>
-        <GenreChip label="Any Language" selected={language === null} onPress={() => setLanguage(null)} />
+        <GenreChip label={t('discover.anyLanguage')} selected={language === null} onPress={() => setLanguage(null)} />
         {languages.map((l) => (
           <GenreChip key={l} label={l} selected={language === l} onPress={() => setLanguage(language === l ? null : l)} />
         ))}
       </ScrollView>
 
       <View style={styles.sortRow}>
-        <Text style={styles.resultCount}>{loading ? '…' : `${results.length} series`}</Text>
-        <Pressable onPress={cycleSort} style={styles.sortButton} accessibilityRole="button" accessibilityLabel={`Sort by ${SORT_LABELS[sort]}`}>
+        <Text style={styles.resultCount}>{loading ? '…' : t('discover.seriesCount', { count: results.length })}</Text>
+        <Pressable onPress={cycleSort} style={styles.sortButton} accessibilityRole="button" accessibilityLabel={`Sort by ${t(SORT_LABEL_KEYS[sort])}`}>
           <Ionicons name="swap-vertical" size={14} color={colors.textSecondary} />
-          <Text style={styles.sortText}>{SORT_LABELS[sort]}</Text>
+          <Text style={styles.sortText}>{t(SORT_LABEL_KEYS[sort])}</Text>
         </Pressable>
       </View>
 
@@ -120,8 +123,8 @@ export default function DiscoverScreen() {
       ) : results.length === 0 ? (
         <EmptyState
           icon="film-outline"
-          title="No series match those filters"
-          subtitle="Try clearing a filter or choosing a different genre."
+          title={t('discover.emptyTitle')}
+          subtitle={t('discover.emptySubtitle')}
         />
       ) : (
         <FlatList

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { asyncStorageAdapter, STORAGE_KEYS } from './storage';
+import { DEFAULT_LANGUAGE, type LanguageCode } from '@/i18n/translations';
 
 export type PlaybackQuality = 'auto' | '480p' | '720p' | '1080p';
 
@@ -9,13 +10,13 @@ interface SettingsState {
   autoplayNextEpisode: boolean;
   subtitlesEnabled: boolean;
   playbackQuality: PlaybackQuality;
-  language: string;
+  language: LanguageCode;
   reducedMotion: boolean;
   setNotificationsEnabled: (v: boolean) => void;
   setAutoplayNextEpisode: (v: boolean) => void;
   setSubtitlesEnabled: (v: boolean) => void;
   setPlaybackQuality: (v: PlaybackQuality) => void;
-  setLanguage: (v: string) => void;
+  setLanguage: (v: LanguageCode) => void;
   setReducedMotion: (v: boolean) => void;
   resetSettings: () => void;
 }
@@ -25,7 +26,7 @@ const DEFAULTS = {
   autoplayNextEpisode: true,
   subtitlesEnabled: false,
   playbackQuality: 'auto' as PlaybackQuality,
-  language: 'English',
+  language: DEFAULT_LANGUAGE,
   reducedMotion: false,
 };
 

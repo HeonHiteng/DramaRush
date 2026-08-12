@@ -19,6 +19,7 @@ import {
   resetPrototype,
 } from '@/store';
 import { useEpisodes } from '@/services/content';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export default function ProfileScreen() {
   const user = useUserStore((s) => s.user);
@@ -31,6 +32,7 @@ export default function ProfileScreen() {
   const lockAllPremium = useLibraryStore((s) => s.lockAllPremium);
   const unlockAll = useLibraryStore((s) => s.unlockAll);
   const { data: allEpisodes = [] } = useEpisodes();
+  const { t } = useTranslation();
 
   const premiumEpisodeIds = useMemo(() => allEpisodes.filter((e) => e.access !== 'free').map((e) => e.id), [allEpisodes]);
   const allEpisodeIds = useMemo(() => allEpisodes.map((e) => e.id), [allEpisodes]);
@@ -71,7 +73,7 @@ export default function ProfileScreen() {
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.headerRow}>
-          <Text style={styles.header}>Profile</Text>
+          <Text style={styles.header}>{t('profile.title')}</Text>
           {__DEV__ && (
             <View style={styles.prototypeBadge}>
               <Text style={styles.prototypeBadgeText}>PROTOTYPE</Text>
@@ -91,7 +93,7 @@ export default function ProfileScreen() {
                 <PremiumBadge compact />
               ) : (
                 <View style={styles.freeBadge}>
-                  <Text style={styles.freeBadgeText}>FREE MEMBER</Text>
+                  <Text style={styles.freeBadgeText}>{t('profile.freeMember')}</Text>
                 </View>
               )}
             </View>
@@ -101,7 +103,7 @@ export default function ProfileScreen() {
         <Pressable onPress={() => router.push('/wallet')} accessibilityRole="button" accessibilityLabel="Open wallet">
           <LinearGradient colors={gradients.premiumBanner} style={styles.coinCard}>
             <View>
-              <Text style={styles.coinLabel}>Coin Balance</Text>
+              <Text style={styles.coinLabel}>{t('profile.coinBalance')}</Text>
               <CoinBadge amount={balance} size="lg" />
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textPrimary} />
@@ -109,42 +111,48 @@ export default function ProfileScreen() {
         </Pressable>
 
         <View style={styles.menuGroup}>
-          <ProfileMenuItem icon="time-outline" label="Watch History" onPress={() => router.push('/library')} />
-          <ProfileMenuItem icon="wallet-outline" label="Wallet" onPress={() => router.push('/wallet')} />
+          <ProfileMenuItem icon="time-outline" label={t('profile.watchHistory')} onPress={() => router.push('/library')} />
+          <ProfileMenuItem icon="wallet-outline" label={t('profile.wallet')} onPress={() => router.push('/wallet')} />
           <ProfileMenuItem
             icon="diamond-outline"
-            label="Subscription"
-            value={subscription.isActive ? (subscription.planId === 'annual' ? 'Annual' : 'Monthly') : 'None'}
+            label={t('profile.subscription')}
+            value={
+              subscription.isActive
+                ? subscription.planId === 'annual'
+                  ? t('profile.annual')
+                  : t('profile.monthly')
+                : t('profile.none')
+            }
             onPress={() => router.push('/subscription')}
           />
         </View>
 
-        <Text style={styles.groupLabel}>Settings</Text>
+        <Text style={styles.groupLabel}>{t('profile.settings')}</Text>
         <View style={styles.menuGroup}>
-          <ProfileMenuItem icon="notifications-outline" label="Notification Settings" onPress={() => router.push('/settings/notifications')} />
-          <ProfileMenuItem icon="play-circle-outline" label="Playback Settings" onPress={() => router.push('/settings/playback')} />
-          <ProfileMenuItem icon="language-outline" label="Language" onPress={() => router.push('/settings/language')} />
+          <ProfileMenuItem icon="notifications-outline" label={t('profile.notificationSettings')} onPress={() => router.push('/settings/notifications')} />
+          <ProfileMenuItem icon="play-circle-outline" label={t('profile.playbackSettings')} onPress={() => router.push('/settings/playback')} />
+          <ProfileMenuItem icon="language-outline" label={t('profile.language')} onPress={() => router.push('/settings/language')} />
         </View>
 
-        <Text style={styles.groupLabel}>Support</Text>
+        <Text style={styles.groupLabel}>{t('profile.support')}</Text>
         <View style={styles.menuGroup}>
-          <ProfileMenuItem icon="help-circle-outline" label="Help & Support" onPress={() => router.push('/settings/help')} />
-          <ProfileMenuItem icon="document-text-outline" label="Terms of Service" onPress={() => router.push('/settings/legal?type=terms')} />
-          <ProfileMenuItem icon="shield-checkmark-outline" label="Privacy Policy" onPress={() => router.push('/settings/legal?type=privacy')} />
+          <ProfileMenuItem icon="help-circle-outline" label={t('profile.helpSupport')} onPress={() => router.push('/settings/help')} />
+          <ProfileMenuItem icon="document-text-outline" label={t('profile.termsOfService')} onPress={() => router.push('/settings/legal?type=terms')} />
+          <ProfileMenuItem icon="shield-checkmark-outline" label={t('profile.privacyPolicy')} onPress={() => router.push('/settings/legal?type=privacy')} />
         </View>
 
         {user?.isAdmin && (
           <>
-            <Text style={styles.groupLabel}>Admin</Text>
+            <Text style={styles.groupLabel}>{t('profile.admin')}</Text>
             <View style={styles.menuGroup}>
-              <ProfileMenuItem icon="film-outline" label="Content Admin" onPress={() => router.push('/admin')} />
+              <ProfileMenuItem icon="film-outline" label={t('profile.contentAdmin')} onPress={() => router.push('/admin')} />
             </View>
           </>
         )}
 
         <View style={styles.menuGroup}>
-          <ProfileMenuItem icon="log-out-outline" label="Sign Out" onPress={confirmSignOut} />
-          <ProfileMenuItem icon="trash-outline" label="Reset Prototype" destructive onPress={() => setConfirmVisible(true)} />
+          <ProfileMenuItem icon="log-out-outline" label={t('profile.signOut')} onPress={confirmSignOut} />
+          <ProfileMenuItem icon="trash-outline" label={t('profile.resetPrototype')} destructive onPress={() => setConfirmVisible(true)} />
         </View>
 
         {__DEV__ && (
@@ -178,22 +186,24 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <Text style={styles.footerNote}>
-          {BRAND.name} is a prototype. Authentication, payments, and ads are simulated for demonstration purposes.
-        </Text>
+        <Text style={styles.footerNote}>{t('profile.footerNote', { brand: BRAND.name })}</Text>
       </ScrollView>
 
       <AppModal visible={confirmVisible} onClose={() => setConfirmVisible(false)}>
         <View style={styles.confirmIconWrap}>
           <Ionicons name="warning" size={26} color={colors.danger} />
         </View>
-        <Text style={styles.confirmTitle}>Reset prototype?</Text>
-        <Text style={styles.confirmBody}>
-          This clears onboarding, sign-in, progress, unlocks, membership, coin balance, favourites, and history on
-          this device. This cannot be undone.
-        </Text>
-        <AppButton label="Reset Everything" onPress={handleReset} variant="danger" fullWidth loading={resetting} style={styles.confirmAction} />
-        <AppButton label="Cancel" onPress={() => setConfirmVisible(false)} variant="ghost" fullWidth />
+        <Text style={styles.confirmTitle}>{t('profile.confirmResetTitle')}</Text>
+        <Text style={styles.confirmBody}>{t('profile.confirmResetBody')}</Text>
+        <AppButton
+          label={t('profile.resetEverything')}
+          onPress={handleReset}
+          variant="danger"
+          fullWidth
+          loading={resetting}
+          style={styles.confirmAction}
+        />
+        <AppButton label={t('common.cancel')} onPress={() => setConfirmVisible(false)} variant="ghost" fullWidth />
       </AppModal>
     </Screen>
   );

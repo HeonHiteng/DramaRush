@@ -5,37 +5,30 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { StackHeader } from '@/components/ui/StackHeader';
 import { BRAND } from '@/config';
+import { useTranslation } from '@/i18n/useTranslation';
+import type { TranslationKey } from '@/i18n/translations';
 
-const FAQS = [
-  {
-    q: 'Are payments real in this app?',
-    a: 'No. Coin purchases and memberships are fully simulated for this prototype — no payment method is ever charged.',
-  },
-  {
-    q: 'How do I unlock a locked episode?',
-    a: 'Open the episode and choose Unlock with coins, watch a simulated rewarded ad (where available), or join membership.',
-  },
-  {
-    q: 'How do I reset my demo progress?',
-    a: 'Go to Profile → Reset Prototype to clear all saved progress, unlocks, and coins on this device.',
-  },
+const FAQ_KEYS: { q: TranslationKey; a: TranslationKey }[] = [
+  { q: 'help.faq1Q', a: 'help.faq1A' },
+  { q: 'help.faq2Q', a: 'help.faq2A' },
+  { q: 'help.faq3Q', a: 'help.faq3A' },
 ];
 
 export default function HelpScreen() {
+  const { t } = useTranslation();
+
   return (
     <Screen>
-      <StackHeader title="Help & Support" />
+      <StackHeader title={t('profile.helpSupport')} />
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.intro}>
-          {BRAND.name} is a prototype build. This screen simulates a support center for demonstration purposes.
-        </Text>
-        {FAQS.map((item) => (
+        <Text style={styles.intro}>{t('help.intro', { brand: BRAND.name })}</Text>
+        {FAQ_KEYS.map((item) => (
           <View key={item.q} style={styles.card}>
             <View style={styles.cardHeader}>
               <Ionicons name="help-circle" size={16} color={colors.accent} />
-              <Text style={styles.question}>{item.q}</Text>
+              <Text style={styles.question}>{t(item.q)}</Text>
             </View>
-            <Text style={styles.answer}>{item.a}</Text>
+            <Text style={styles.answer}>{t(item.a)}</Text>
           </View>
         ))}
         <View style={styles.contactCard}>

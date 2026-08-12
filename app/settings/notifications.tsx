@@ -5,24 +5,24 @@ import { Screen } from '@/components/ui/Screen';
 import { StackHeader } from '@/components/ui/StackHeader';
 import { ProfileMenuItem } from '@/components/ui/ProfileMenuItem';
 import { useSettingsStore } from '@/store';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export default function NotificationsScreen() {
   const s = useSettingsStore();
+  const { t } = useTranslation();
 
   return (
     <Screen>
-      <StackHeader title="Notification Settings" />
+      <StackHeader title={t('profile.notificationSettings')} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.group}>
           <ProfileMenuItem
             icon="notifications-outline"
-            label="Push Notifications"
+            label={t('settings.pushNotifications')}
             toggle={{ value: s.notificationsEnabled, onChange: s.setNotificationsEnabled }}
           />
         </View>
-        <Text style={styles.hint}>
-          In this prototype, notifications are never actually sent — this toggle only demonstrates the settings UI.
-        </Text>
+        <Text style={styles.hint}>{t('settings.notificationsHint')}</Text>
       </ScrollView>
     </Screen>
   );

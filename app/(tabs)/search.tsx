@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { GENRES } from '@/data';
 import { useSearchStore } from '@/store';
 import { useSeries } from '@/services/content';
+import { useTranslation } from '@/i18n/useTranslation';
 import type { Series } from '@/types';
 import { matchesQuery } from '@/utils/search';
 
@@ -22,6 +23,7 @@ export default function SearchScreen() {
   const addRecent = useSearchStore((s) => s.addRecent);
   const clearRecent = useSearchStore((s) => s.clearRecent);
   const { data: series } = useSeries();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 280);
@@ -43,7 +45,7 @@ export default function SearchScreen() {
 
   return (
     <Screen>
-      <Text style={styles.header}>Search</Text>
+      <Text style={styles.header}>{t('search.title')}</Text>
 
       <View style={styles.inputWrap}>
         <Ionicons name="search" size={18} color={colors.textTertiary} />
@@ -51,7 +53,7 @@ export default function SearchScreen() {
           value={query}
           onChangeText={setQuery}
           onSubmitEditing={() => commitSearch(query)}
-          placeholder="Search titles, genres, or cast"
+          placeholder={t('search.placeholder')}
           placeholderTextColor={colors.textTertiary}
           style={styles.input}
           returnKeyType="search"
@@ -75,9 +77,9 @@ export default function SearchScreen() {
               {recentSearches.length > 0 && (
                 <View style={styles.section}>
                   <View style={styles.sectionHeaderRow}>
-                    <Text style={styles.sectionTitle}>Recent Searches</Text>
+                    <Text style={styles.sectionTitle}>{t('search.recentSearches')}</Text>
                     <Pressable onPress={clearRecent} accessibilityRole="button" accessibilityLabel="Clear recent searches">
-                      <Text style={styles.clearText}>Clear</Text>
+                      <Text style={styles.clearText}>{t('search.clear')}</Text>
                     </Pressable>
                   </View>
                   <View style={styles.chipWrap}>
@@ -89,7 +91,7 @@ export default function SearchScreen() {
               )}
 
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Trending Searches</Text>
+                <Text style={styles.sectionTitle}>{t('search.trendingSearches')}</Text>
                 <View style={styles.chipWrap}>
                   {TRENDING_SEARCHES.map((q) => (
                     <GenreChip key={q} label={q} onPress={() => commitSearch(q)} />
@@ -98,7 +100,7 @@ export default function SearchScreen() {
               </View>
 
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Browse by Genre</Text>
+                <Text style={styles.sectionTitle}>{t('search.browseByGenre')}</Text>
                 <View style={styles.chipWrap}>
                   {GENRES.map((g) => (
                     <GenreChip key={g} label={g} onPress={() => commitSearch(g)} />
@@ -107,7 +109,7 @@ export default function SearchScreen() {
               </View>
 
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Suggested Titles</Text>
+                <Text style={styles.sectionTitle}>{t('search.suggestedTitles')}</Text>
                 {(series ?? []).slice(0, 4).map((s) => (
                   <SuggestedRow key={s.id} series={s} onPress={() => router.push(`/series/${s.id}`)} />
                 ))}
@@ -118,8 +120,8 @@ export default function SearchScreen() {
       ) : showEmptyResults ? (
         <EmptyState
           icon="search-outline"
-          title={`No results for "${debouncedQuery}"`}
-          subtitle="Try a different title, genre, or cast member."
+          title={t('search.emptyTitle', { query: debouncedQuery })}
+          subtitle={t('search.emptySubtitle')}
         />
       ) : (
         <FlatList

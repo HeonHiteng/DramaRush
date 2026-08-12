@@ -5,32 +5,33 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { StackHeader } from '@/components/ui/StackHeader';
 import { useSettingsStore } from '@/store';
-
-const LANGUAGES = ['English', 'Spanish', 'Korean', 'Portuguese'];
+import { LANGUAGES } from '@/i18n/translations';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export default function LanguageSettingsScreen() {
   const language = useSettingsStore((s) => s.language);
   const setLanguage = useSettingsStore((s) => s.setLanguage);
+  const { t } = useTranslation();
 
   return (
     <Screen>
-      <StackHeader title="Language" />
+      <StackHeader title={t('language.title')} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.group}>
           {LANGUAGES.map((lang, i) => (
             <Pressable
-              key={lang}
-              onPress={() => setLanguage(lang)}
+              key={lang.code}
+              onPress={() => setLanguage(lang.code)}
               style={[styles.row, i < LANGUAGES.length - 1 && styles.rowBorder]}
               accessibilityRole="button"
-              accessibilityState={{ selected: language === lang }}
+              accessibilityState={{ selected: language === lang.code }}
             >
-              <Text style={styles.rowText}>{lang}</Text>
-              {language === lang && <Ionicons name="checkmark" size={18} color={colors.accent} />}
+              <Text style={styles.rowText}>{lang.label}</Text>
+              {language === lang.code && <Ionicons name="checkmark" size={18} color={colors.accent} />}
             </Pressable>
           ))}
         </View>
-        <Text style={styles.hint}>Subtitle and interface language for this prototype device only.</Text>
+        <Text style={styles.hint}>{t('language.hint')}</Text>
       </ScrollView>
     </Screen>
   );

@@ -16,14 +16,16 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { useUserStore } from '@/store';
 import { BRAND } from '@/config';
+import { useTranslation } from '@/i18n/useTranslation';
+import type { TranslationKey } from '@/i18n/translations';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SLIDE_WIDTH = Math.min(SCREEN_WIDTH, 430);
 
 interface Slide {
   icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  subtitle: string;
+  titleKey: TranslationKey;
+  subtitleKey: TranslationKey;
   colors: readonly [string, string, string];
   glow: string;
 }
@@ -31,22 +33,22 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     icon: 'film',
-    title: 'Stories made for every moment.',
-    subtitle: 'Bite-sized episodes that fit into any break in your day.',
+    titleKey: 'onboarding.slide1.title',
+    subtitleKey: 'onboarding.slide1.subtitle',
     colors: ['#3A2030', '#1E1420', colors.bg],
     glow: 'rgba(255,90,95,0.35)',
   },
   {
     icon: 'flash',
-    title: 'Watch addictive dramas in minutes.',
-    subtitle: 'Vertical, binge-ready episodes — no downloads, no waiting.',
+    titleKey: 'onboarding.slide2.title',
+    subtitleKey: 'onboarding.slide2.subtitle',
     colors: ['#1C2440', '#161B30', colors.bg],
     glow: 'rgba(78,140,255,0.35)',
   },
   {
     icon: 'diamond',
-    title: 'Unlock more with coins or membership.',
-    subtitle: 'Earn coins, watch free with ads, or go unlimited.',
+    titleKey: 'onboarding.slide3.title',
+    subtitleKey: 'onboarding.slide3.subtitle',
     colors: ['#402715', '#241708', colors.bg],
     glow: 'rgba(244,185,66,0.35)',
   },
@@ -56,6 +58,7 @@ export default function OnboardingScreen() {
   const [index, setIndex] = useState(0);
   const listRef = useRef<FlatList<Slide>>(null);
   const completeOnboarding = useUserStore((s) => s.completeOnboarding);
+  const { t } = useTranslation();
 
   const goNext = () => {
     if (index < SLIDES.length - 1) {
@@ -82,7 +85,7 @@ export default function OnboardingScreen() {
   return (
     <View style={styles.root}>
       <Pressable onPress={finish} style={styles.skip} accessibilityRole="button" accessibilityLabel="Skip onboarding">
-        <Text style={styles.skipText}>Skip</Text>
+        <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
       </Pressable>
 
       <FlatList
@@ -91,7 +94,7 @@ export default function OnboardingScreen() {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        keyExtractor={(item) => item.title}
+        keyExtractor={(item) => item.titleKey}
         onScroll={onScroll}
         scrollEventThrottle={16}
         getItemLayout={(_, i) => ({ length: SLIDE_WIDTH, offset: SLIDE_WIDTH * i, index: i })}
@@ -114,8 +117,8 @@ export default function OnboardingScreen() {
 
             <View style={styles.textBlock}>
               <Text style={styles.brand}>{BRAND.name}</Text>
-              <Text style={styles.title}>{item.title}</Text>
-              <Text style={styles.subtitle}>{item.subtitle}</Text>
+              <Text style={styles.title}>{t(item.titleKey)}</Text>
+              <Text style={styles.subtitle}>{t(item.subtitleKey)}</Text>
             </View>
           </LinearGradient>
         )}
@@ -128,7 +131,7 @@ export default function OnboardingScreen() {
           ))}
         </View>
         <AppButton
-          label={isLast ? 'Get Started' : 'Next'}
+          label={isLast ? t('onboarding.getStarted') : t('onboarding.next')}
           onPress={goNext}
           fullWidth
           size="lg"

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, gradients, radius, spacing, typography } from '@/theme';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { formatDuration } from '@/utils/format';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export interface VideoControlsProps {
   visible: boolean;
@@ -62,6 +63,7 @@ export function VideoControls({
 }: VideoControlsProps) {
   const insets = useSafeAreaInsets();
   const progress = durationSec > 0 ? positionSec / durationSec : 0;
+  const { t } = useTranslation();
 
   return (
     <View style={[StyleSheet.absoluteFill, styles.boxNone]}>
@@ -83,7 +85,7 @@ export function VideoControls({
         <>
           <LinearGradient colors={gradients.scrimTop} style={[styles.topScrim, { paddingTop: insets.top + spacing.xs }]}>
             <View style={styles.topBar}>
-              <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close player" hitSlop={10} style={styles.iconButton}>
+              <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('player.closePlayer')} hitSlop={10} style={styles.iconButton}>
                 <Ionicons name="chevron-down" size={26} color={colors.white} />
               </Pressable>
               <View style={styles.topTitleWrap}>
@@ -91,13 +93,13 @@ export function VideoControls({
                   {seriesTitle}
                 </Text>
                 <Text style={styles.topSubtitle} numberOfLines={1}>
-                  EP {episodeNumber} of {totalEpisodes} · {episodeTitle}
+                  {t('player.episodeMeta', { number: episodeNumber, total: totalEpisodes, title: episodeTitle })}
                 </Text>
               </View>
               <Pressable
                 onPress={onOpenEpisodeList}
                 accessibilityRole="button"
-                accessibilityLabel="Episode list"
+                accessibilityLabel={t('player.episodeListLabel')}
                 hitSlop={10}
                 style={styles.iconButton}
               >
@@ -110,18 +112,18 @@ export function VideoControls({
             <SideAction
               icon={isFavorite ? 'heart' : 'heart-outline'}
               color={isFavorite ? colors.accent : colors.white}
-              label="Favorite"
+              label={t('player.favorite')}
               onPress={onToggleFavorite}
             />
-            <SideAction icon="share-social" label="Share" onPress={onShare} />
+            <SideAction icon="share-social" label={t('player.share')} onPress={onShare} />
             <SideAction
               icon="chatbox-ellipses"
-              label={subtitlesEnabled ? 'CC On' : 'CC Off'}
+              label={subtitlesEnabled ? t('player.ccOn') : t('player.ccOff')}
               active={subtitlesEnabled}
               onPress={onToggleSubtitles}
             />
             <SideAction icon="speedometer" label={`${playbackSpeed}x`} onPress={onCycleSpeed} />
-            <SideAction icon={isMuted ? 'volume-mute' : 'volume-high'} label="Volume" onPress={onToggleMute} />
+            <SideAction icon={isMuted ? 'volume-mute' : 'volume-high'} label={t('player.volume')} onPress={onToggleMute} />
           </View>
 
           <LinearGradient
@@ -139,9 +141,9 @@ export function VideoControls({
 
           {nextCountdown !== null && (
             <View style={[styles.countdownWrap, { bottom: insets.bottom + 70 }]}>
-              <Text style={styles.countdownText}>Next episode in {nextCountdown}s</Text>
-              <Pressable onPress={onCancelCountdown} style={styles.countdownCancel} accessibilityRole="button" accessibilityLabel="Cancel autoplay">
-                <Text style={styles.countdownCancelText}>Cancel</Text>
+              <Text style={styles.countdownText}>{t('player.nextEpisodeIn', { seconds: nextCountdown })}</Text>
+              <Pressable onPress={onCancelCountdown} style={styles.countdownCancel} accessibilityRole="button" accessibilityLabel={t('player.cancelAutoplay')}>
+                <Text style={styles.countdownCancelText}>{t('common.cancel')}</Text>
               </Pressable>
             </View>
           )}
@@ -182,6 +184,7 @@ function SideAction({
 
 function SeekBar({ progress, onSeek }: { progress: number; onSeek: (ratio: number) => void }) {
   const widthRef = React.useRef(1);
+  const { t } = useTranslation();
   return (
     <Pressable
       onPress={(e) => {
@@ -193,7 +196,7 @@ function SeekBar({ progress, onSeek }: { progress: number; onSeek: (ratio: numbe
       }}
       style={styles.seekTouchArea}
       accessibilityRole="adjustable"
-      accessibilityLabel="Seek"
+      accessibilityLabel={t('player.seek')}
     >
       <ProgressBar progress={progress} height={4} />
     </Pressable>

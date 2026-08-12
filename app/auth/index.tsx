@@ -10,6 +10,7 @@ import { colors, gradients, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { useUserStore } from '@/store';
 import { BRAND } from '@/config';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const emailSchema = z.object({
   name: z.string().trim().optional(),
@@ -32,6 +33,7 @@ export default function AuthScreen() {
   const [pending, setPending] = useState<PendingAction>(null);
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [mode, setMode] = useState<'signup' | 'signin'>('signup');
+  const { t } = useTranslation();
 
   const {
     control,
@@ -70,15 +72,15 @@ export default function AuthScreen() {
           <View style={styles.logoMark}>
             <Text style={styles.logoGlyph}>D</Text>
           </View>
-          <Text style={styles.title}>Welcome to {BRAND.name}</Text>
-          <Text style={styles.subtitle}>Sign in to sync your favourites, coins, and progress across devices.</Text>
+          <Text style={styles.title}>{t('auth.welcome', { brand: BRAND.name })}</Text>
+          <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
 
           <View style={styles.actions}>
             {authError && pending === null && !showEmailForm && (
               <Text style={styles.errorText}>{authError}</Text>
             )}
             <AppButton
-              label="Continue as Guest"
+              label={t('auth.continueAsGuest')}
               onPress={() => runSignIn('guest', signInAsGuest)}
               variant="secondary"
               fullWidth
@@ -89,7 +91,7 @@ export default function AuthScreen() {
 
             {!showEmailForm ? (
               <AppButton
-                label="Sign in with Email"
+                label={t('auth.signInWithEmail')}
                 onPress={() => setShowEmailForm(true)}
                 variant="primary"
                 fullWidth
@@ -100,13 +102,13 @@ export default function AuthScreen() {
               <View style={styles.emailForm}>
                 <View style={styles.modeToggleRow}>
                   <AppButton
-                    label="Sign Up"
+                    label={t('auth.signUp')}
                     onPress={() => setMode('signup')}
                     variant={mode === 'signup' ? 'primary' : 'ghost'}
                     style={styles.modeToggleButton}
                   />
                   <AppButton
-                    label="Sign In"
+                    label={t('auth.signIn')}
                     onPress={() => setMode('signin')}
                     variant={mode === 'signin' ? 'primary' : 'ghost'}
                     style={styles.modeToggleButton}
@@ -121,7 +123,7 @@ export default function AuthScreen() {
                       <View style={styles.fieldWrap}>
                         <TextInput
                           style={styles.input}
-                          placeholder="Your name"
+                          placeholder={t('auth.namePlaceholder')}
                           placeholderTextColor={colors.textTertiary}
                           value={value}
                           onChangeText={onChange}
@@ -140,7 +142,7 @@ export default function AuthScreen() {
                     <View style={styles.fieldWrap}>
                       <TextInput
                         style={styles.input}
-                        placeholder="you@example.com"
+                        placeholder={t('auth.emailPlaceholder')}
                         placeholderTextColor={colors.textTertiary}
                         value={value}
                         onChangeText={onChange}
@@ -160,7 +162,7 @@ export default function AuthScreen() {
                     <View style={styles.fieldWrap}>
                       <TextInput
                         style={styles.input}
-                        placeholder="Password"
+                        placeholder={t('auth.passwordPlaceholder')}
                         placeholderTextColor={colors.textTertiary}
                         value={value}
                         onChangeText={onChange}
@@ -174,7 +176,7 @@ export default function AuthScreen() {
                 />
                 {authError && pending === null && <Text style={styles.errorText}>{authError}</Text>}
                 <AppButton
-                  label={mode === 'signup' ? 'Create Account' : 'Sign In'}
+                  label={mode === 'signup' ? t('auth.createAccount') : t('auth.signIn')}
                   onPress={handleSubmit(onSubmitEmail)}
                   variant="primary"
                   fullWidth
@@ -184,7 +186,7 @@ export default function AuthScreen() {
             )}
 
             <AppButton
-              label="Continue with Google"
+              label={t('auth.continueWithGoogle')}
               onPress={() => runSignIn('google', () => signInWithOAuth('google'))}
               variant="secondary"
               fullWidth

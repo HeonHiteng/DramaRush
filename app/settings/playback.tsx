@@ -5,35 +5,37 @@ import { Screen } from '@/components/ui/Screen';
 import { StackHeader } from '@/components/ui/StackHeader';
 import { ProfileMenuItem } from '@/components/ui/ProfileMenuItem';
 import { useSettingsStore, type PlaybackQuality } from '@/store/settingsStore';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const QUALITIES: PlaybackQuality[] = ['auto', '480p', '720p', '1080p'];
 
 export default function PlaybackSettingsScreen() {
   const s = useSettingsStore();
+  const { t } = useTranslation();
 
   return (
     <Screen>
-      <StackHeader title="Playback Settings" />
+      <StackHeader title={t('profile.playbackSettings')} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.group}>
           <ProfileMenuItem
             icon="play-skip-forward-outline"
-            label="Autoplay Next Episode"
+            label={t('settings.autoplayNextEpisode')}
             toggle={{ value: s.autoplayNextEpisode, onChange: s.setAutoplayNextEpisode }}
           />
           <ProfileMenuItem
             icon="chatbox-ellipses-outline"
-            label="Subtitles by Default"
+            label={t('settings.subtitlesByDefault')}
             toggle={{ value: s.subtitlesEnabled, onChange: s.setSubtitlesEnabled }}
           />
           <ProfileMenuItem
             icon="accessibility-outline"
-            label="Reduce Motion"
+            label={t('settings.reduceMotion')}
             toggle={{ value: s.reducedMotion, onChange: s.setReducedMotion }}
           />
         </View>
 
-        <Text style={styles.sectionLabel}>Streaming Quality</Text>
+        <Text style={styles.sectionLabel}>{t('settings.streamingQuality')}</Text>
         <View style={styles.qualityRow}>
           {QUALITIES.map((q) => (
             <Pressable
@@ -44,7 +46,7 @@ export default function PlaybackSettingsScreen() {
               accessibilityState={{ selected: s.playbackQuality === q }}
             >
               <Text style={[styles.qualityText, s.playbackQuality === q && styles.qualityTextActive]}>
-                {q === 'auto' ? 'Auto' : q}
+                {q === 'auto' ? t('settings.qualityAuto') : q}
               </Text>
             </Pressable>
           ))}
