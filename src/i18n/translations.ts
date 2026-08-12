@@ -252,13 +252,13 @@ export const translations = {
     // Legal
     'legal.prototypeNotice': 'Prototype placeholder document — not a legally binding agreement.',
     'legal.privacyBody':
-      'This is a design prototype for {brand}. No real user data is collected, stored, or transmitted to any server. All account details, viewing history, and purchases shown in this app live only in local device storage and are cleared whenever you reset the prototype.',
+      'This is a product design prototype for {brand}, but it runs on a real backend: your account, watch history, favourites, coin balance, and subscription status are stored in a real database and sync across devices. Payments and advertisements are simulated — see "No Real Transactions" below. You can permanently clear all of this at any time from Profile → Reset Prototype.',
     'legal.termsBody':
-      'This is a design prototype for {brand}, built to demonstrate product design and user experience only. There are no real subscriptions, purchases, or accounts. All coins, memberships, and unlocks are simulated for demonstration purposes and carry no monetary value.',
+      'This is a product design prototype for {brand}, built to demonstrate product design and user experience. Your account is real, but there are no real subscriptions or purchases behind it — all coins, memberships, and unlocks are simulated for demonstration purposes and carry no monetary value.',
     'legal.dataCollectionHeading': 'Data Collection',
     'legal.noRealTransactionsHeading': 'No Real Transactions',
     'legal.dataCollectionBody':
-      'Because this build has no backend, there is nothing to collect: sign-in, coin purchases, and subscriptions are all simulated locally on this device.',
+      'Your account details, watch history, favourites, coin balance, and subscription status are stored in a real database (Supabase) so they sync across devices. Sign-in, coin purchases, and subscription changes remain simulated — no real payment is ever collected. You can clear all of this at any time from Profile → Reset Prototype.',
     'legal.noRealTransactionsBody':
       'Every "purchase" in this prototype is simulated. No payment method is ever charged, and no advertisement network is contacted.',
     'legal.contactHeading': 'Contact',
@@ -488,12 +488,13 @@ export const translations = {
 
     'legal.prototypeNotice': '原型占位文档 — 不具法律约束力。',
     'legal.privacyBody':
-      '这是 {brand} 的设计原型。不会收集、存储或传输任何真实用户数据到服务器。应用中显示的所有账户信息、观看记录和购买记录均仅保存在本地设备存储中，重置原型时会被清除。',
+      '这是 {brand} 的产品设计原型，但运行在真实后端上：您的账户、观看记录、收藏、金币余额和订阅状态均存储在真实数据库中，并可跨设备同步。支付和广告为模拟功能 — 详见下方"无真实交易"。您可以随时通过"我的" → "重置原型"永久清除这些数据。',
     'legal.termsBody':
-      '这是 {brand} 的设计原型，仅用于演示产品设计和用户体验。不存在真实的订阅、购买或账户。所有金币、会员资格和解锁内容均为演示模拟，不具任何货币价值。',
+      '这是 {brand} 的产品设计原型，仅用于演示产品设计和用户体验。您的账户是真实的，但背后没有真实的订阅或购买 — 所有金币、会员资格和解锁内容均为演示模拟，不具任何货币价值。',
     'legal.dataCollectionHeading': '数据收集',
     'legal.noRealTransactionsHeading': '无真实交易',
-    'legal.dataCollectionBody': '由于此版本没有后端，因此无需收集任何数据：登录、金币购买和订阅均在本设备本地模拟。',
+    'legal.dataCollectionBody':
+      '您的账户信息、观看记录、收藏、金币余额和订阅状态均存储在真实数据库（Supabase）中，以便跨设备同步。登录、金币购买和订阅变更仍为模拟 — 不会产生任何真实扣款。您可以随时通过"我的" → "重置原型"清除这些数据。',
     'legal.noRealTransactionsBody': '此原型中的每一笔"购买"均为模拟。不会产生任何实际扣款，也不会联系任何广告网络。',
     'legal.contactHeading': '联系我们',
     'legal.contactBody': '如有关于此原型的问题，请通过"帮助与支持"中列出的地址联系产品团队。',
@@ -725,13 +726,13 @@ export const translations = {
 
     'legal.prototypeNotice': 'Dokumen ruang letak prototaip — bukan perjanjian yang mengikat dari segi undang-undang.',
     'legal.privacyBody':
-      'Ini adalah prototaip reka bentuk untuk {brand}. Tiada data pengguna sebenar dikumpul, disimpan, atau dihantar ke mana-mana pelayan. Semua butiran akaun, sejarah tontonan, dan pembelian yang dipaparkan dalam aplikasi ini hanya disimpan dalam storan peranti tempatan dan akan dikosongkan apabila anda menetapkan semula prototaip.',
+      'Ini adalah prototaip reka bentuk produk untuk {brand}, tetapi ia berjalan pada bahagian belakang sebenar: akaun, sejarah tontonan, kegemaran, baki syiling, dan status langganan anda disimpan dalam pangkalan data sebenar dan disegerakkan merentasi peranti. Pembayaran dan iklan disimulasikan — lihat "Tiada Transaksi Sebenar" di bawah. Anda boleh mengosongkan semua ini pada bila-bila masa melalui Profil → Tetapkan Semula Prototaip.',
     'legal.termsBody':
-      'Ini adalah prototaip reka bentuk untuk {brand}, dibina untuk menunjukkan reka bentuk produk dan pengalaman pengguna sahaja. Tiada langganan, pembelian, atau akaun sebenar. Semua syiling, keahlian, dan pembukaan kunci disimulasikan untuk tujuan demonstrasi dan tidak mempunyai sebarang nilai kewangan.',
+      'Ini adalah prototaip reka bentuk produk untuk {brand}, dibina untuk menunjukkan reka bentuk produk dan pengalaman pengguna. Akaun anda adalah sebenar, tetapi tiada langganan atau pembelian sebenar di sebaliknya — semua syiling, keahlian, dan pembukaan kunci disimulasikan untuk tujuan demonstrasi dan tidak mempunyai sebarang nilai kewangan.',
     'legal.dataCollectionHeading': 'Pengumpulan Data',
     'legal.noRealTransactionsHeading': 'Tiada Transaksi Sebenar',
     'legal.dataCollectionBody':
-      'Oleh kerana pembinaan ini tiada bahagian belakang, tiada apa untuk dikumpul: log masuk, pembelian syiling, dan langganan semuanya disimulasikan secara tempatan pada peranti ini.',
+      'Butiran akaun, sejarah tontonan, kegemaran, baki syiling, dan status langganan anda disimpan dalam pangkalan data sebenar (Supabase) supaya disegerakkan merentasi peranti. Log masuk, pembelian syiling, dan perubahan langganan masih disimulasikan — tiada pembayaran sebenar pernah dikutip. Anda boleh mengosongkan semua ini pada bila-bila masa melalui Profil → Tetapkan Semula Prototaip.',
     'legal.noRealTransactionsBody':
       'Setiap "pembelian" dalam prototaip ini disimulasikan. Tiada kaedah pembayaran pernah dicaj, dan tiada rangkaian pengiklanan dihubungi.',
     'legal.contactHeading': 'Hubungi',
