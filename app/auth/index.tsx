@@ -3,13 +3,13 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, type Control, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { colors, gradients, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { useUserStore } from '@/store';
-import { BRAND } from '@/config';
+import { BRAND, DEFAULT_MEMBER_NAME } from '@/config';
 import { useTranslation } from '@/i18n/useTranslation';
 
 const emailSchema = z.object({
@@ -21,6 +21,25 @@ type EmailFormValues = z.infer<typeof emailSchema>;
 
 type PendingAction = 'guest' | 'email' | 'google' | null;
 
+/** The screen renders two fairly different pitches depending on why it was
+ * opened (see the comment on `isUpgrade` below) — collecting what differs
+ * into one object keeps that split in one place instead of scattered across
+ * five separate `{!isUpgrade && ...}` checks through the JSX. */
+function getScreenCopy(isUpgrade: boolean, t: ReturnType<typeof useTranslation>['t']) {
+  return {
+    title: isUpgrade ? t('auth.upgradeTitle') : t('auth.welcome', { brand: BRAND.name }),
+    subtitle: isUpgrade ? t('auth.upgradeSubtitle') : t('auth.subtitle'),
+    showGuestButton: !isUpgrade,
+    // Linking Google to an existing guest session needs
+    // supabase.auth.linkIdentity, not signInWithOAuth (which would sign
+    // into/create a *separate* account, silently orphaning the guest's
+    // wallet/unlocks/history). Not built yet, so hide it in upgrade mode
+    // rather than offer something that would lose the user's data.
+    showGoogleButton: !isUpgrade,
+    showLegalDisclosure: !isUpgrade,
+  };
+}
+
 export default function AuthScreen() {
   // Reached two ways: (1) as a fallback if the automatic guest sign-in on
   // onboarding/relaunch failed, showing every option; (2) from Profile as
@@ -28,6 +47,8 @@ export default function AuthScreen() {
   // credentials to their existing account instead of starting a new one.
   const { mode: screenModeParam } = useLocalSearchParams<{ mode?: string }>();
   const isUpgrade = screenModeParam === 'upgrade';
+  const { t } = useTranslation();
+  const copy = getScreenCopy(isUpgrade, t);
 
   const signInAsGuest = useUserStore((s) => s.signInAsGuest);
   const signUpWithEmail = useUserStore((s) => s.signUpWithEmail);
@@ -41,7 +62,6 @@ export default function AuthScreen() {
   const [pending, setPending] = useState<PendingAction>(null);
   const [showEmailForm, setShowEmailForm] = useState(isUpgrade);
   const [mode, setMode] = useState<'signup' | 'signin'>('signup');
-  const { t } = useTranslation();
 
   const {
     control,
@@ -52,19 +72,17 @@ export default function AuthScreen() {
     defaultValues: { name: '', email: '', password: '' },
   });
 
-  const runSignIn = async (action: Exclude<PendingAction, null>, task: () => Promise<void>) => {
+  const runSignIn = async (action: Exclude<PendingAction, null>, task: () => Promise<boolean>) => {
     clearAuthError();
     setPending(action);
-    await task();
+    const succeeded = await task();
     setPending(null);
-    if (!useUserStore.getState().authError) {
-      router.replace('/(tabs)');
-    }
+    if (succeeded) router.replace('/(tabs)');
   };
 
   const onSubmitEmail = (values: EmailFormValues) => {
     if (mode === 'signup') {
-      const name = values.name?.trim() || 'DramaRush Member';
+      const name = values.name?.trim() || DEFAULT_MEMBER_NAME;
       const task = isUpgrade
         ? () => upgradeGuestAccount(name, values.email, values.password)
         : () => signUpWithEmail(name, values.email, values.password);
@@ -84,16 +102,14 @@ export default function AuthScreen() {
           <View style={styles.logoMark}>
             <Text style={styles.logoGlyph}>D</Text>
           </View>
-          <Text style={styles.title}>
-            {isUpgrade ? t('auth.upgradeTitle') : t('auth.welcome', { brand: BRAND.name })}
-          </Text>
-          <Text style={styles.subtitle}>{isUpgrade ? t('auth.upgradeSubtitle') : t('auth.subtitle')}</Text>
+          <Text style={styles.title}>{copy.title}</Text>
+          <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
           <View style={styles.actions}>
             {authError && pending === null && !showEmailForm && (
               <Text style={styles.errorText}>{authError}</Text>
             )}
-            {!isUpgrade && (
+            {copy.showGuestButton && (
               <AppButton
                 label={t('auth.continueAsGuest')}
                 onPress={() => runSignIn('guest', signInAsGuest)}
@@ -115,97 +131,18 @@ export default function AuthScreen() {
                 icon={<Ionicons name="mail-outline" size={18} color={colors.textPrimary} />}
               />
             ) : (
-              <View style={styles.emailForm}>
-                <View style={styles.modeToggleRow}>
-                  <AppButton
-                    label={t('auth.signUp')}
-                    onPress={() => setMode('signup')}
-                    variant={mode === 'signup' ? 'primary' : 'ghost'}
-                    style={styles.modeToggleButton}
-                  />
-                  <AppButton
-                    label={t('auth.signIn')}
-                    onPress={() => setMode('signin')}
-                    variant={mode === 'signin' ? 'primary' : 'ghost'}
-                    style={styles.modeToggleButton}
-                  />
-                </View>
-
-                {mode === 'signup' && (
-                  <Controller
-                    control={control}
-                    name="name"
-                    render={({ field: { onChange, onBlur, value } }) => (
-                      <View style={styles.fieldWrap}>
-                        <TextInput
-                          style={styles.input}
-                          placeholder={t('auth.namePlaceholder')}
-                          placeholderTextColor={colors.textTertiary}
-                          value={value}
-                          onChangeText={onChange}
-                          onBlur={onBlur}
-                          accessibilityLabel="Your name"
-                          autoCapitalize="words"
-                        />
-                      </View>
-                    )}
-                  />
-                )}
-                <Controller
-                  control={control}
-                  name="email"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <View style={styles.fieldWrap}>
-                      <TextInput
-                        style={styles.input}
-                        placeholder={t('auth.emailPlaceholder')}
-                        placeholderTextColor={colors.textTertiary}
-                        value={value}
-                        onChangeText={onChange}
-                        onBlur={onBlur}
-                        accessibilityLabel="Email address"
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                      />
-                      {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
-                    </View>
-                  )}
-                />
-                <Controller
-                  control={control}
-                  name="password"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <View style={styles.fieldWrap}>
-                      <TextInput
-                        style={styles.input}
-                        placeholder={t('auth.passwordPlaceholder')}
-                        placeholderTextColor={colors.textTertiary}
-                        value={value}
-                        onChangeText={onChange}
-                        onBlur={onBlur}
-                        accessibilityLabel="Password"
-                        secureTextEntry
-                      />
-                      {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
-                    </View>
-                  )}
-                />
-                {authError && pending === null && <Text style={styles.errorText}>{authError}</Text>}
-                <AppButton
-                  label={mode === 'signup' ? t('auth.createAccount') : t('auth.signIn')}
-                  onPress={handleSubmit(onSubmitEmail)}
-                  variant="primary"
-                  fullWidth
-                  loading={pending === 'email'}
-                />
-              </View>
+              <EmailAuthForm
+                control={control}
+                errors={errors}
+                mode={mode}
+                onModeChange={setMode}
+                onSubmit={handleSubmit(onSubmitEmail)}
+                submitting={pending === 'email'}
+                error={pending === null ? authError : null}
+              />
             )}
 
-            {/* Hidden in upgrade mode: linking Google to an existing guest
-                session needs supabase.auth.linkIdentity, not signInWithOAuth
-                (which would sign into/create a *separate* account, silently
-                orphaning the guest's wallet/unlocks/history). Not built yet. */}
-            {!isUpgrade && (
+            {copy.showGoogleButton && (
               <AppButton
                 label={t('auth.continueWithGoogle')}
                 onPress={() => runSignIn('google', () => signInWithOAuth('google'))}
@@ -218,7 +155,7 @@ export default function AuthScreen() {
             )}
           </View>
 
-          {!isUpgrade && (
+          {copy.showLegalDisclosure && (
             <Text style={styles.legal}>
               Google sign-in requires one-time provider setup in the backend — see the
               DramaRush-Backend README. Everything else here is a real account.
@@ -227,6 +164,110 @@ export default function AuthScreen() {
         </ScrollView>
       </LinearGradient>
     </KeyboardAvoidingView>
+  );
+}
+
+interface EmailAuthFormProps {
+  control: Control<EmailFormValues>;
+  errors: FieldErrors<EmailFormValues>;
+  mode: 'signup' | 'signin';
+  onModeChange: (mode: 'signup' | 'signin') => void;
+  onSubmit: () => void;
+  submitting: boolean;
+  error: string | null;
+}
+
+/** The name/email/password fields plus the sign-up/sign-in toggle, pulled
+ * out of AuthScreen so that screen's JSX reads as "which pieces are shown
+ * for this mode" rather than being buried under ~90 lines of form markup. */
+function EmailAuthForm({ control, errors, mode, onModeChange, onSubmit, submitting, error }: EmailAuthFormProps) {
+  const { t } = useTranslation();
+
+  return (
+    <View style={styles.emailForm}>
+      <View style={styles.modeToggleRow}>
+        <AppButton
+          label={t('auth.signUp')}
+          onPress={() => onModeChange('signup')}
+          variant={mode === 'signup' ? 'primary' : 'ghost'}
+          style={styles.modeToggleButton}
+        />
+        <AppButton
+          label={t('auth.signIn')}
+          onPress={() => onModeChange('signin')}
+          variant={mode === 'signin' ? 'primary' : 'ghost'}
+          style={styles.modeToggleButton}
+        />
+      </View>
+
+      {mode === 'signup' && (
+        <Controller
+          control={control}
+          name="name"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <View style={styles.fieldWrap}>
+              <TextInput
+                style={styles.input}
+                placeholder={t('auth.namePlaceholder')}
+                placeholderTextColor={colors.textTertiary}
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                accessibilityLabel="Your name"
+                autoCapitalize="words"
+              />
+            </View>
+          )}
+        />
+      )}
+      <Controller
+        control={control}
+        name="email"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <View style={styles.fieldWrap}>
+            <TextInput
+              style={styles.input}
+              placeholder={t('auth.emailPlaceholder')}
+              placeholderTextColor={colors.textTertiary}
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              accessibilityLabel="Email address"
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
+          </View>
+        )}
+      />
+      <Controller
+        control={control}
+        name="password"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <View style={styles.fieldWrap}>
+            <TextInput
+              style={styles.input}
+              placeholder={t('auth.passwordPlaceholder')}
+              placeholderTextColor={colors.textTertiary}
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              accessibilityLabel="Password"
+              secureTextEntry
+            />
+            {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
+          </View>
+        )}
+      />
+      {error && <Text style={styles.errorText}>{error}</Text>}
+      <AppButton
+        label={mode === 'signup' ? t('auth.createAccount') : t('auth.signIn')}
+        onPress={onSubmit}
+        variant="primary"
+        fullWidth
+        loading={submitting}
+      />
+    </View>
   );
 }
 

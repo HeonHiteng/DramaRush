@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
+import { FRAME_WIDTH } from '@/components/ui/WebFrame';
 import { useUserStore } from '@/store';
 import { BRAND } from '@/config';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -20,7 +21,9 @@ import { autoGuestSignIn } from '@/utils/autoGuestSignIn';
 import type { TranslationKey } from '@/i18n/translations';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SLIDE_WIDTH = Math.min(SCREEN_WIDTH, 430);
+// Capped to match WebFrame's phone-frame width so slides don't render wider
+// than the frame they'll actually be viewed in on wide web viewports.
+const SLIDE_WIDTH = Math.min(SCREEN_WIDTH, FRAME_WIDTH);
 
 interface Slide {
   icon: keyof typeof Ionicons.glyphMap;

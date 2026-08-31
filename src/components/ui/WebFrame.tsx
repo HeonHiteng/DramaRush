@@ -2,7 +2,10 @@ import React from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { colors } from '@/theme';
 
-const FRAME_WIDTH = 430;
+// Exported so screens that size content relative to "the phone frame" (e.g.
+// onboarding's slide width) share this instead of guessing their own copy of
+// the same number — it's the one place that actually decides the frame size.
+export const FRAME_WIDTH = 430;
 const FRAME_HEIGHT = 932;
 const BREAKPOINT = 640;
 

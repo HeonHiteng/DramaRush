@@ -17,6 +17,11 @@ interface BottomSheetProps {
   maxHeightRatio?: number;
 }
 
+// Shared by the close animation and the unmount timer below — they're
+// describing the same motion, so they must stay in sync. Two separate
+// literal `220`s would silently drift the moment either one changed.
+const CLOSE_ANIM_MS = 220;
+
 export function BottomSheet({ visible, onClose, children, maxHeightRatio = 0.86 }: BottomSheetProps) {
   const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -37,13 +42,13 @@ export function BottomSheet({ visible, onClose, children, maxHeightRatio = 0.86 
       backdropOpacity.value = withTiming(1, { duration: 240 });
       return;
     }
-    translateY.value = withTiming(screenHeight, { duration: 220 });
+    translateY.value = withTiming(screenHeight, { duration: CLOSE_ANIM_MS });
     backdropOpacity.value = withTiming(0, { duration: 200 });
     // Plain JS timer rather than withTiming's own completion callback: that
     // callback crosses the reanimated UI-thread/JS-thread bridge and, at
     // least in this web setup, doesn't reliably fire — which left this sheet
     // mounted (just painted over by whatever opened next) indefinitely.
-    const timer = setTimeout(() => setMounted(false), 220);
+    const timer = setTimeout(() => setMounted(false), CLOSE_ANIM_MS);
     return () => clearTimeout(timer);
     // Deliberately keyed on `visible` alone: `screenHeight` (from
     // useWindowDimensions) can genuinely change mid-transition (layout
@@ -64,8 +69,6 @@ export function BottomSheet({ visible, onClose, children, maxHeightRatio = 0.86 
 
   if (!mounted) return null;
 
-  const close = () => onClose();
-
   const pan = Gesture.Pan()
     .onUpdate((e) => {
       if (e.translationY > 0) translateY.value = e.translationY;
@@ -73,7 +76,7 @@ export function BottomSheet({ visible, onClose, children, maxHeightRatio = 0.86 
     .onEnd((e) => {
       if (e.translationY > 110 || e.velocityY > 900) {
         translateY.value = withTiming(screenHeight, { duration: 200 });
-        runOnJS(close)();
+        runOnJS(onClose)();
       } else {
         translateY.value = withTiming(0, { duration: 200 });
       }

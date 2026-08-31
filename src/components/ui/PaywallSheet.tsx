@@ -30,6 +30,10 @@ interface PaywallSheetProps {
 
 type Status = 'idle' | 'processing' | 'success' | 'insufficient';
 
+// How long the success checkmark stays on screen before the sheet closes
+// itself and hands control back to the player.
+const UNLOCK_SUCCESS_DELAY_MS = 900;
+
 export function PaywallSheet({
   visible,
   onClose,
@@ -63,9 +67,7 @@ export function PaywallSheet({
       setStatus('success');
       successHaptic();
       checkScale.value = withSequence(withTiming(1.15, { duration: 220 }), withTiming(1, { duration: 120 }));
-      setTimeout(() => {
-        onUnlocked();
-      }, 900);
+      setTimeout(onUnlocked, UNLOCK_SUCCESS_DELAY_MS);
     } else {
       setStatus('insufficient');
     }
@@ -80,9 +82,12 @@ export function PaywallSheet({
           <Ionicons name="star" size={22} color={colors.gold} />
           <Text style={styles.headerTitle}>{t('paywall.membersOnlyTitle')}</Text>
         </View>
-        <Text style={styles.episodeTitle}>{seriesTitle}</Text>
-        <Text style={styles.episodeSubtitle}>{t('paywall.episodeMeta', { number: episode.number, title: episode.title })}</Text>
-        <PaywallHook seriesRating={seriesRating} episode={episode} totalEpisodes={totalEpisodes} />
+        <PaywallEpisodeSummary
+          seriesTitle={seriesTitle}
+          episode={episode}
+          seriesRating={seriesRating}
+          totalEpisodes={totalEpisodes}
+        />
         <Text style={styles.body}>{t('paywall.membersOnlyBody', { brand: BRAND.name })}</Text>
         <AppButton label={t('paywall.viewMembership')} onPress={onViewMembership} variant="gold" fullWidth style={styles.primaryAction} />
         <AppButton label={t('wallet.restorePurchases')} onPress={onRestorePurchases} variant="ghost" fullWidth style={styles.secondaryAction} />
@@ -106,9 +111,12 @@ export function PaywallSheet({
             <Ionicons name="lock-closed" size={20} color={colors.gold} />
             <Text style={styles.headerTitle}>{t('paywall.unlockTitle')}</Text>
           </View>
-          <Text style={styles.episodeTitle}>{seriesTitle}</Text>
-          <Text style={styles.episodeSubtitle}>{t('paywall.episodeMeta', { number: episode.number, title: episode.title })}</Text>
-          <PaywallHook seriesRating={seriesRating} episode={episode} totalEpisodes={totalEpisodes} />
+          <PaywallEpisodeSummary
+            seriesTitle={seriesTitle}
+            episode={episode}
+            seriesRating={seriesRating}
+            totalEpisodes={totalEpisodes}
+          />
 
           <View style={styles.balanceRow}>
             <Text style={styles.balanceLabel}>{t('wallet.yourBalance')}</Text>
@@ -155,6 +163,27 @@ export function PaywallSheet({
         </>
       )}
     </BottomSheet>
+  );
+}
+
+interface PaywallEpisodeSummaryProps {
+  seriesTitle: string;
+  episode: Episode;
+  seriesRating: number;
+  totalEpisodes: number;
+}
+
+/** The series/episode identification block shown identically at the top of
+ * both paywall variants (members-only and coin/ad) — pulled out once rather
+ * than repeated so the two variants can't drift apart by accident. */
+function PaywallEpisodeSummary({ seriesTitle, episode, seriesRating, totalEpisodes }: PaywallEpisodeSummaryProps) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <Text style={styles.episodeTitle}>{seriesTitle}</Text>
+      <Text style={styles.episodeSubtitle}>{t('paywall.episodeMeta', { number: episode.number, title: episode.title })}</Text>
+      <PaywallHook seriesRating={seriesRating} episode={episode} totalEpisodes={totalEpisodes} />
+    </>
   );
 }
 

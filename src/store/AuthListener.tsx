@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { DEFAULT_GUEST_NAME, DEFAULT_MEMBER_NAME } from '@/config';
 import { useUserStore } from './userStore';
 import { useLibraryStore } from './libraryStore';
 import { useWalletStore } from './walletStore';
@@ -23,7 +24,7 @@ async function loadMockUser(session: Session): Promise<MockUser> {
     .eq('user_id', session.user.id)
     .maybeSingle();
 
-  const fallbackName = provider === 'guest' ? 'Guest Viewer' : 'DramaRush Member';
+  const fallbackName = provider === 'guest' ? DEFAULT_GUEST_NAME : DEFAULT_MEMBER_NAME;
 
   return {
     id: session.user.id,
