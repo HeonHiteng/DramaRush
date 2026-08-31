@@ -47,6 +47,8 @@ export const translations = {
     'auth.namePlaceholder': 'Your name',
     'auth.emailPlaceholder': 'you@example.com',
     'auth.passwordPlaceholder': 'Password',
+    'auth.upgradeTitle': 'Save Your Progress',
+    'auth.upgradeSubtitle': 'Add a password to keep your favourites, coins, and watch history — on this device and any other.',
 
     // Profile
     'profile.title': 'Profile',
@@ -75,6 +77,8 @@ export const translations = {
       'This clears onboarding, sign-in, progress, unlocks, membership, coin balance, favourites, and history on this device. This cannot be undone.',
     'profile.resetEverything': 'Reset Everything',
     'profile.footerNote': '{brand} is a prototype. Authentication, payments, and ads are simulated for demonstration purposes.',
+    'profile.upgradeGuest': 'Create an Account',
+    'profile.upgradeGuestSubtitle': 'Save your progress across devices',
     'common.cancel': 'Cancel',
     'common.watchNow': 'Watch Now',
 
@@ -230,6 +234,7 @@ export const translations = {
     'paywall.watchAdFree': 'Watch Advertisement (Free)',
     'paywall.viewCoinPackages': 'View Coin Packages',
     'paywall.memberHint': "You're a member — some episodes are already included with your plan.",
+    'paywall.episodesAhead': '{count} more episodes in this story',
 
     // Rewarded ad overlay
     'ad.prototypeTag': 'SIMULATED ADVERTISEMENT — PROTOTYPE ONLY',
@@ -301,6 +306,8 @@ export const translations = {
     'auth.namePlaceholder': '您的姓名',
     'auth.emailPlaceholder': 'you@example.com',
     'auth.passwordPlaceholder': '密码',
+    'auth.upgradeTitle': '保存您的进度',
+    'auth.upgradeSubtitle': '设置密码以保留您的收藏、金币和观看记录 — 适用于本设备及其他任何设备。',
 
     'profile.title': '我的',
     'profile.freeMember': '免费用户',
@@ -327,6 +334,8 @@ export const translations = {
     'profile.confirmResetBody': '这将清除此设备上的引导状态、登录信息、进度、解锁内容、会员资格、金币余额、收藏与观看记录。此操作无法撤销。',
     'profile.resetEverything': '重置全部',
     'profile.footerNote': '{brand} 为原型产品，登录、支付与广告功能均为演示模拟。',
+    'profile.upgradeGuest': '创建账户',
+    'profile.upgradeGuestSubtitle': '跨设备保存您的进度',
     'common.cancel': '取消',
     'common.watchNow': '立即观看',
 
@@ -470,6 +479,7 @@ export const translations = {
     'paywall.watchAdFree': '观看广告（免费）',
     'paywall.viewCoinPackages': '查看金币套餐',
     'paywall.memberHint': '您已是会员 — 部分剧集已包含在您的套餐中。',
+    'paywall.episodesAhead': '还有 {count} 集精彩剧情',
 
     'ad.prototypeTag': '模拟广告 — 仅供原型演示',
     'ad.partnerSpotlight': '{brand} 合作伙伴推荐',
@@ -535,6 +545,8 @@ export const translations = {
     'auth.namePlaceholder': 'Nama anda',
     'auth.emailPlaceholder': 'you@example.com',
     'auth.passwordPlaceholder': 'Kata Laluan',
+    'auth.upgradeTitle': 'Simpan Kemajuan Anda',
+    'auth.upgradeSubtitle': 'Tambah kata laluan untuk menyimpan kegemaran, syiling, dan sejarah tontonan anda — pada peranti ini dan mana-mana peranti lain.',
 
     'profile.title': 'Profil',
     'profile.freeMember': 'AHLI PERCUMA',
@@ -562,6 +574,8 @@ export const translations = {
       'Ini akan mengosongkan status pengenalan, log masuk, kemajuan, kunci dibuka, keahlian, baki syiling, kegemaran, dan sejarah pada peranti ini. Tindakan ini tidak boleh dibatalkan.',
     'profile.resetEverything': 'Tetapkan Semula Semuanya',
     'profile.footerNote': '{brand} adalah prototaip. Log masuk, pembayaran, dan iklan disimulasikan untuk tujuan demonstrasi.',
+    'profile.upgradeGuest': 'Cipta Akaun',
+    'profile.upgradeGuestSubtitle': 'Simpan kemajuan anda merentasi peranti',
     'common.cancel': 'Batal',
     'common.watchNow': 'Tonton Sekarang',
 
@@ -707,6 +721,7 @@ export const translations = {
     'paywall.watchAdFree': 'Tonton Iklan (Percuma)',
     'paywall.viewCoinPackages': 'Lihat Pakej Syiling',
     'paywall.memberHint': 'Anda seorang ahli — sesetengah episod sudah termasuk dalam pelan anda.',
+    'paywall.episodesAhead': '{count} lagi episod dalam cerita ini',
 
     'ad.prototypeTag': 'IKLAN SIMULASI — PROTOTAIP SAHAJA',
     'ad.partnerSpotlight': 'Sorotan Rakan Kongsi {brand}',

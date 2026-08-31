@@ -11,12 +11,12 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { colors, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { useUserStore } from '@/store';
 import { BRAND } from '@/config';
 import { useTranslation } from '@/i18n/useTranslation';
+import { autoGuestSignIn } from '@/utils/autoGuestSignIn';
 import type { TranslationKey } from '@/i18n/translations';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -64,6 +64,7 @@ export default function OnboardingScreen() {
   const [listHeight, setListHeight] = useState(0);
   const listRef = useRef<FlatList<Slide>>(null);
   const completeOnboarding = useUserStore((s) => s.completeOnboarding);
+  const [finishing, setFinishing] = useState(false);
   const { t } = useTranslation();
 
   const goNext = () => {
@@ -76,9 +77,15 @@ export default function OnboardingScreen() {
     }
   };
 
-  const finish = () => {
+  const finish = async () => {
+    if (finishing) return;
+    setFinishing(true);
     completeOnboarding();
-    router.replace('/auth');
+    // Signs the device in as a guest and navigates straight into the app —
+    // no separate sign-in screen for a brand-new user to get through first.
+    // Email/Google/staying-a-guest are still all available afterward, from
+    // Profile. See autoGuestSignIn for the fallback if this fails.
+    await autoGuestSignIn();
   };
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -90,7 +97,13 @@ export default function OnboardingScreen() {
 
   return (
     <View style={styles.root}>
-      <Pressable onPress={finish} style={styles.skip} accessibilityRole="button" accessibilityLabel="Skip onboarding">
+      <Pressable
+        onPress={finish}
+        disabled={finishing}
+        style={styles.skip}
+        accessibilityRole="button"
+        accessibilityLabel="Skip onboarding"
+      >
         <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
       </Pressable>
 
@@ -144,6 +157,8 @@ export default function OnboardingScreen() {
         <AppButton
           label={isLast ? t('onboarding.getStarted') : t('onboarding.next')}
           onPress={goNext}
+          loading={isLast && finishing}
+          disabled={finishing}
           fullWidth
           size="lg"
         />

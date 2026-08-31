@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect } from 'expo-router';
@@ -12,6 +12,7 @@ import Animated, {
 import { colors, gradients, typography } from '@/theme';
 import { BRAND } from '@/config';
 import { useUserStore } from '@/store';
+import { autoGuestSignIn } from '@/utils/autoGuestSignIn';
 
 const MIN_SPLASH_MS = 1400;
 
@@ -20,6 +21,7 @@ export default function SplashScreen() {
   const hasOnboarded = useUserStore((s) => s.hasOnboarded);
   const user = useUserStore((s) => s.user);
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const guestAttempted = useRef(false);
 
   const logoScale = useSharedValue(0.7);
   const logoOpacity = useSharedValue(0);
@@ -40,10 +42,25 @@ export default function SplashScreen() {
   }));
   const taglineStyle = useAnimatedStyle(() => ({ opacity: taglineOpacity.value }));
 
-  if (hasHydrated && minTimeElapsed) {
+  const ready = hasHydrated && minTimeElapsed;
+
+  // Onboarded but no session (e.g. relaunching after signing out) — sign
+  // back in as a guest automatically rather than forcing the auth screen;
+  // see autoGuestSignIn for why. Not needed for a first-ever launch: that
+  // path is handled by onboarding's own "Get Started"/"Skip" instead, so it
+  // can navigate the moment sign-in resolves without an extra splash cycle.
+  useEffect(() => {
+    if (ready && hasOnboarded && !user && !guestAttempted.current) {
+      guestAttempted.current = true;
+      autoGuestSignIn();
+    }
+  }, [ready, hasOnboarded, user]);
+
+  if (ready) {
     if (!hasOnboarded) return <Redirect href="/onboarding" />;
-    if (!user) return <Redirect href="/auth" />;
-    return <Redirect href="/(tabs)" />;
+    if (user) return <Redirect href="/(tabs)" />;
+    // No user yet: the effect above is attempting guest sign-in (or has
+    // already redirected to /auth if that failed) — keep showing the splash.
   }
 
   return (

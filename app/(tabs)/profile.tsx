@@ -100,6 +100,25 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {user?.provider === 'guest' && (
+          <Pressable
+            onPress={() => router.push('/auth?mode=upgrade')}
+            accessibilityRole="button"
+            accessibilityLabel={t('profile.upgradeGuest')}
+          >
+            <LinearGradient colors={gradients.coralGlow} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.upgradeCard}>
+              <View style={styles.upgradeIconWrap}>
+                <Ionicons name="shield-checkmark" size={20} color={colors.white} />
+              </View>
+              <View style={styles.upgradeTextWrap}>
+                <Text style={styles.upgradeTitle}>{t('profile.upgradeGuest')}</Text>
+                <Text style={styles.upgradeSubtitle}>{t('profile.upgradeGuestSubtitle')}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.white} />
+            </LinearGradient>
+          </Pressable>
+        )}
+
         <Pressable onPress={() => router.push('/wallet')} accessibilityRole="button" accessibilityLabel="Open wallet">
           <LinearGradient colors={gradients.premiumBanner} style={styles.coinCard}>
             <View>
@@ -244,6 +263,25 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: 'row', marginTop: spacing.xs },
   freeBadge: { backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.xs, paddingVertical: 3, borderRadius: radius.sm },
   freeBadgeText: { ...typography.micro, color: colors.textTertiary },
+  upgradeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  upgradeIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  upgradeTextWrap: { flex: 1 },
+  upgradeTitle: { ...typography.bodyMedium, color: colors.white },
+  upgradeSubtitle: { ...typography.caption, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   coinCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',

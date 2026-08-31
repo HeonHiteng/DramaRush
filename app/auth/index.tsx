@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -22,16 +22,24 @@ type EmailFormValues = z.infer<typeof emailSchema>;
 type PendingAction = 'guest' | 'email' | 'google' | null;
 
 export default function AuthScreen() {
+  // Reached two ways: (1) as a fallback if the automatic guest sign-in on
+  // onboarding/relaunch failed, showing every option; (2) from Profile as
+  // `?mode=upgrade`, when an already-signed-in guest wants to attach real
+  // credentials to their existing account instead of starting a new one.
+  const { mode: screenModeParam } = useLocalSearchParams<{ mode?: string }>();
+  const isUpgrade = screenModeParam === 'upgrade';
+
   const signInAsGuest = useUserStore((s) => s.signInAsGuest);
   const signUpWithEmail = useUserStore((s) => s.signUpWithEmail);
   const signInWithEmail = useUserStore((s) => s.signInWithEmail);
+  const upgradeGuestAccount = useUserStore((s) => s.upgradeGuestAccount);
   const signInWithOAuth = useUserStore((s) => s.signInWithOAuth);
   const isAuthenticating = useUserStore((s) => s.isAuthenticating);
   const authError = useUserStore((s) => s.authError);
   const clearAuthError = useUserStore((s) => s.clearAuthError);
 
   const [pending, setPending] = useState<PendingAction>(null);
-  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(isUpgrade);
   const [mode, setMode] = useState<'signup' | 'signin'>('signup');
   const { t } = useTranslation();
 
@@ -56,7 +64,11 @@ export default function AuthScreen() {
 
   const onSubmitEmail = (values: EmailFormValues) => {
     if (mode === 'signup') {
-      runSignIn('email', () => signUpWithEmail(values.name?.trim() || 'DramaRush Member', values.email, values.password));
+      const name = values.name?.trim() || 'DramaRush Member';
+      const task = isUpgrade
+        ? () => upgradeGuestAccount(name, values.email, values.password)
+        : () => signUpWithEmail(name, values.email, values.password);
+      runSignIn('email', task);
     } else {
       runSignIn('email', () => signInWithEmail(values.email, values.password));
     }
@@ -72,31 +84,35 @@ export default function AuthScreen() {
           <View style={styles.logoMark}>
             <Text style={styles.logoGlyph}>D</Text>
           </View>
-          <Text style={styles.title}>{t('auth.welcome', { brand: BRAND.name })}</Text>
-          <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
+          <Text style={styles.title}>
+            {isUpgrade ? t('auth.upgradeTitle') : t('auth.welcome', { brand: BRAND.name })}
+          </Text>
+          <Text style={styles.subtitle}>{isUpgrade ? t('auth.upgradeSubtitle') : t('auth.subtitle')}</Text>
 
           <View style={styles.actions}>
             {authError && pending === null && !showEmailForm && (
               <Text style={styles.errorText}>{authError}</Text>
             )}
-            <AppButton
-              label={t('auth.continueAsGuest')}
-              onPress={() => runSignIn('guest', signInAsGuest)}
-              variant="secondary"
-              fullWidth
-              loading={pending === 'guest'}
-              disabled={isAuthenticating && pending !== 'guest'}
-              icon={<Ionicons name="person-outline" size={18} color={colors.textPrimary} />}
-            />
+            {!isUpgrade && (
+              <AppButton
+                label={t('auth.continueAsGuest')}
+                onPress={() => runSignIn('guest', signInAsGuest)}
+                variant="primary"
+                fullWidth
+                loading={pending === 'guest'}
+                disabled={isAuthenticating && pending !== 'guest'}
+                icon={<Ionicons name="person-outline" size={18} color={colors.textInverse} />}
+              />
+            )}
 
             {!showEmailForm ? (
               <AppButton
                 label={t('auth.signInWithEmail')}
                 onPress={() => setShowEmailForm(true)}
-                variant="primary"
+                variant="secondary"
                 fullWidth
                 disabled={isAuthenticating}
-                icon={<Ionicons name="mail-outline" size={18} color={colors.textInverse} />}
+                icon={<Ionicons name="mail-outline" size={18} color={colors.textPrimary} />}
               />
             ) : (
               <View style={styles.emailForm}>
@@ -185,21 +201,29 @@ export default function AuthScreen() {
               </View>
             )}
 
-            <AppButton
-              label={t('auth.continueWithGoogle')}
-              onPress={() => runSignIn('google', () => signInWithOAuth('google'))}
-              variant="secondary"
-              fullWidth
-              loading={pending === 'google'}
-              disabled={isAuthenticating && pending !== 'google'}
-              icon={<Ionicons name="logo-google" size={18} color={colors.textPrimary} />}
-            />
+            {/* Hidden in upgrade mode: linking Google to an existing guest
+                session needs supabase.auth.linkIdentity, not signInWithOAuth
+                (which would sign into/create a *separate* account, silently
+                orphaning the guest's wallet/unlocks/history). Not built yet. */}
+            {!isUpgrade && (
+              <AppButton
+                label={t('auth.continueWithGoogle')}
+                onPress={() => runSignIn('google', () => signInWithOAuth('google'))}
+                variant="secondary"
+                fullWidth
+                loading={pending === 'google'}
+                disabled={isAuthenticating && pending !== 'google'}
+                icon={<Ionicons name="logo-google" size={18} color={colors.textPrimary} />}
+              />
+            )}
           </View>
 
-          <Text style={styles.legal}>
-            Google sign-in requires one-time provider setup in the backend — see the
-            DramaRush-Backend README. Everything else here is a real account.
-          </Text>
+          {!isUpgrade && (
+            <Text style={styles.legal}>
+              Google sign-in requires one-time provider setup in the backend — see the
+              DramaRush-Backend README. Everything else here is a real account.
+            </Text>
+          )}
         </ScrollView>
       </LinearGradient>
     </KeyboardAvoidingView>

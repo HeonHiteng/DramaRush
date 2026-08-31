@@ -17,6 +17,7 @@ interface UserState {
   signInAsGuest: () => Promise<void>;
   signUpWithEmail: (name: string, email: string, password: string) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
+  upgradeGuestAccount: (name: string, email: string, password: string) => Promise<void>;
   signInWithOAuth: (provider: 'google' | 'apple') => Promise<void>;
   signOut: () => Promise<void>;
   clearAuthError: () => void;
@@ -64,6 +65,32 @@ export const useUserStore = create<UserState>()(
       signInWithEmail: async (email, password) => {
         set({ isAuthenticating: true, authError: null });
         const { error } = await supabase.auth.signInWithPassword({ email, password });
+        set({ isAuthenticating: false, authError: error ? friendlyAuthError(error) : null });
+      },
+
+      // Attaches real credentials to the *current* (anonymous) session via
+      // updateUser, rather than signUp, which would create a brand-new
+      // auth.users row and silently orphan the guest's wallet/unlocks/
+      // history — updateUser keeps the same user id, so everything already
+      // tied to it carries over.
+      upgradeGuestAccount: async (name, email, password) => {
+        set({ isAuthenticating: true, authError: null });
+        const { data, error } = await supabase.auth.updateUser({
+          email,
+          password,
+          data: { provider: 'email', display_name: name },
+        });
+        // updateUser only touches auth.users' metadata — the profiles row
+        // (where display_name actually gets read from; see loadMockUser in
+        // AuthListener) was seeded once at guest sign-up with "Guest Viewer"
+        // and won't pick up the new name on its own. AuthListener also
+        // won't re-run for a plain table write like this one (no auth event
+        // fires), so update the in-memory user directly too instead of
+        // waiting on a refresh that isn't coming.
+        if (!error && data.user) {
+          await supabase.from('profiles').update({ display_name: name }).eq('user_id', data.user.id);
+          set((state) => (state.user ? { user: { ...state.user, displayName: name } } : {}));
+        }
         set({ isAuthenticating: false, authError: error ? friendlyAuthError(error) : null });
       },
 
