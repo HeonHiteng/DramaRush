@@ -16,6 +16,8 @@ interface PaywallSheetProps {
   onClose: () => void;
   episode: Episode;
   seriesTitle: string;
+  seriesRating: number;
+  totalEpisodes: number;
   coinBalance: number;
   isSubscriber: boolean;
   onUnlockWithCoins: () => Promise<boolean>;
@@ -33,6 +35,8 @@ export function PaywallSheet({
   onClose,
   episode,
   seriesTitle,
+  seriesRating,
+  totalEpisodes,
   coinBalance,
   isSubscriber,
   onUnlockWithCoins,
@@ -78,6 +82,7 @@ export function PaywallSheet({
         </View>
         <Text style={styles.episodeTitle}>{seriesTitle}</Text>
         <Text style={styles.episodeSubtitle}>{t('paywall.episodeMeta', { number: episode.number, title: episode.title })}</Text>
+        <PaywallHook seriesRating={seriesRating} episode={episode} totalEpisodes={totalEpisodes} />
         <Text style={styles.body}>{t('paywall.membersOnlyBody', { brand: BRAND.name })}</Text>
         <AppButton label={t('paywall.viewMembership')} onPress={onViewMembership} variant="gold" fullWidth style={styles.primaryAction} />
         <AppButton label={t('wallet.restorePurchases')} onPress={onRestorePurchases} variant="ghost" fullWidth style={styles.secondaryAction} />
@@ -103,6 +108,7 @@ export function PaywallSheet({
           </View>
           <Text style={styles.episodeTitle}>{seriesTitle}</Text>
           <Text style={styles.episodeSubtitle}>{t('paywall.episodeMeta', { number: episode.number, title: episode.title })}</Text>
+          <PaywallHook seriesRating={seriesRating} episode={episode} totalEpisodes={totalEpisodes} />
 
           <View style={styles.balanceRow}>
             <Text style={styles.balanceLabel}>{t('wallet.yourBalance')}</Text>
@@ -152,11 +158,41 @@ export function PaywallSheet({
   );
 }
 
+/** A small, honest hook at the exact moment someone's asked to pay: the
+ * series' real rating plus how much of the story is still ahead — no
+ * fabricated urgency, just data the app already has. */
+function PaywallHook({ seriesRating, episode, totalEpisodes }: { seriesRating: number; episode: Episode; totalEpisodes: number }) {
+  const { t } = useTranslation();
+  const remaining = totalEpisodes - episode.number;
+
+  return (
+    <View style={styles.hookRow}>
+      <View style={styles.ratingChip}>
+        <Ionicons name="star" size={11} color={colors.gold} />
+        <Text style={styles.ratingChipText}>{seriesRating.toFixed(1)}</Text>
+      </View>
+      {remaining > 0 && <Text style={styles.hookText}>{t('paywall.episodesAhead', { count: remaining })}</Text>}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
   episodeTitle: { ...typography.bodyMedium, color: colors.textSecondary },
-  episodeSubtitle: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.md },
+  episodeSubtitle: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.xs },
+  hookRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.md },
+  ratingChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.goldMuted,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+  },
+  ratingChipText: { ...typography.micro, color: colors.gold },
+  hookText: { ...typography.caption, color: colors.textTertiary },
   body: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
   balanceRow: {
     flexDirection: 'row',

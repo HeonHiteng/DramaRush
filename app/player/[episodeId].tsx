@@ -132,6 +132,8 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
         onClose={() => setPaywallEpisode(null)}
         episode={paywallEpisode ?? episodes[0]}
         seriesTitle={series.title}
+        seriesRating={series.rating}
+        totalEpisodes={episodes.length}
         coinBalance={balance}
         isSubscriber={isSubscriber}
         onUnlockWithCoins={async () => {
