@@ -36,7 +36,7 @@ export default function SeriesDetailScreen() {
     return (
       <View style={styles.root}>
         <StackHeader title={t('series.headerTitle')} />
-        <EmptyState icon="alert-circle-outline" title={t('series.notFound')} />
+        <EmptyState fill icon="alert-circle-outline" title={t('series.notFound')} />
       </View>
     );
   }
@@ -78,7 +78,7 @@ export default function SeriesDetailScreen() {
             <LinearGradient colors={gradients.posterFade} style={StyleSheet.absoluteFill} />
           </LinearGradient>
           <View style={styles.headerOverlay}>
-            <StackHeader title="" />
+            <StackHeader title="" overlay />
           </View>
         </View>
 

@@ -122,6 +122,7 @@ export default function DiscoverScreen() {
         <GridSkeleton count={6} />
       ) : results.length === 0 ? (
         <EmptyState
+          fill
           icon="film-outline"
           title={t('discover.emptyTitle')}
           subtitle={t('discover.emptySubtitle')}

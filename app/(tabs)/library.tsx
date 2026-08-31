@@ -1,17 +1,18 @@
 import React, { useMemo } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { PosterCard } from '@/components/media';
+import { PosterArt, PosterCard } from '@/components/media';
 import { useSeries, useEpisodes } from '@/services/content';
 import { useLibraryStore } from '@/store';
 import { useContinueWatching } from '@/hooks/useContinueWatching';
 import { formatRelativeDate } from '@/utils/format';
 import { useTranslation } from '@/i18n/useTranslation';
+import type { Series } from '@/types';
 
 export default function LibraryScreen() {
   const continueWatching = useContinueWatching();
@@ -50,6 +51,7 @@ export default function LibraryScreen() {
       <Screen>
         <Text style={styles.header}>{t('library.title')}</Text>
         <EmptyState
+          fill
           icon="bookmark-outline"
           title={t('library.emptyTitle')}
           subtitle={t('library.emptySubtitle')}
@@ -91,8 +93,7 @@ export default function LibraryScreen() {
             {favoriteSeries.map((series) => (
               <RowItem
                 key={series.id}
-                colorsFrom={series.posterColorFrom}
-                colorsTo={series.posterColorTo}
+                series={series}
                 title={series.title}
                 subtitle={`${series.genres.join(' · ')}`}
                 onPress={() => router.push(`/series/${series.id}`)}
@@ -129,8 +130,7 @@ export default function LibraryScreen() {
               return (
                 <RowItem
                   key={entry.episodeId}
-                  colorsFrom={series.posterColorFrom}
-                  colorsTo={series.posterColorTo}
+                  series={series}
                   title={series.title}
                   subtitle={`EP ${episode.number} · ${formatRelativeDate(entry.watchedAt)}`}
                   onPress={() => router.push(`/player/${episode.id}`)}
@@ -171,16 +171,14 @@ function Section({
 }
 
 function RowItem({
-  colorsFrom,
-  colorsTo,
+  series,
   title,
   subtitle,
   onPress,
   onRemove,
   removeLabel,
 }: {
-  colorsFrom: string;
-  colorsTo: string;
+  series: Series;
   title: string;
   subtitle: string;
   onPress: () => void;
@@ -190,7 +188,13 @@ function RowItem({
   return (
     <View style={styles.row}>
       <Pressable onPress={onPress} style={styles.rowPressable} accessibilityRole="button" accessibilityLabel={title}>
-        <LinearGradient colors={[colorsFrom, colorsTo]} style={styles.rowThumb} />
+        <LinearGradient colors={[series.posterColorFrom, series.posterColorTo]} style={styles.rowThumb}>
+          {series.posterImageUri ? (
+            <Image source={{ uri: series.posterImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          ) : (
+            <PosterArt series={series} />
+          )}
+        </LinearGradient>
         <View style={styles.rowText}>
           <Text style={styles.rowTitle} numberOfLines={1}>
             {title}
@@ -217,7 +221,7 @@ const styles = StyleSheet.create({
   railContent: { paddingRight: spacing.lg },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   rowPressable: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  rowThumb: { width: 48, height: 68, borderRadius: radius.sm },
+  rowThumb: { width: 48, height: 68, borderRadius: radius.sm, overflow: 'hidden' },
   rowText: { flex: 1 },
   rowTitle: { ...typography.bodyMedium, color: colors.textPrimary },
   rowSubtitle: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },

@@ -8,9 +8,13 @@ interface StackHeaderProps {
   title: string;
   onBack?: () => void;
   right?: React.ReactNode;
+  /** Gives the back button a scrim backing so it stays legible floating over
+   * busy imagery (e.g. a banner photo) instead of a plain transparent hit
+   * area, which only reads well against a flat background. */
+  overlay?: boolean;
 }
 
-export function StackHeader({ title, onBack, right }: StackHeaderProps) {
+export function StackHeader({ title, onBack, right, overlay = false }: StackHeaderProps) {
   return (
     <View style={styles.row}>
       <Pressable
@@ -18,7 +22,7 @@ export function StackHeader({ title, onBack, right }: StackHeaderProps) {
         accessibilityRole="button"
         accessibilityLabel="Go back"
         hitSlop={10}
-        style={styles.iconButton}
+        style={[styles.iconButton, overlay && styles.iconButtonOverlay]}
       >
         <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
       </Pressable>
@@ -39,6 +43,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   iconButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  iconButtonOverlay: { backgroundColor: 'rgba(11,9,13,0.55)', borderRadius: 18 },
   title: { ...typography.h3, color: colors.textPrimary, flex: 1 },
   right: { minWidth: 36, alignItems: 'flex-end' },
 });

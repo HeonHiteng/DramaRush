@@ -10,11 +10,17 @@ interface EmptyStateProps {
   subtitle?: string;
   actionLabel?: string;
   onAction?: () => void;
+  /** Fill and vertically center within the remaining screen space, instead of
+   * just centering its own (fixed-height) content. Use when this is the sole
+   * content of a screen — otherwise it sits pinned near the top with a dead
+   * gap below it, since `justifyContent: 'center'` on an auto-height
+   * container has nothing to center against. */
+  fill?: boolean;
 }
 
-export function EmptyState({ icon = 'file-tray-outline', title, subtitle, actionLabel, onAction }: EmptyStateProps) {
+export function EmptyState({ icon = 'file-tray-outline', title, subtitle, actionLabel, onAction, fill = false }: EmptyStateProps) {
   return (
-    <View style={styles.container} accessible accessibilityRole="text">
+    <View style={[styles.container, fill && styles.fill]} accessible accessibilityRole="text">
       <View style={styles.iconWrap}>
         <Ionicons name={icon} size={30} color={colors.textTertiary} />
       </View>
@@ -34,6 +40,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxxl,
     paddingHorizontal: spacing.xl,
   },
+  fill: { flex: 1, paddingVertical: 0 },
   iconWrap: {
     width: 64,
     height: 64,

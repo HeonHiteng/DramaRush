@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,6 +7,7 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { GenreChip } from '@/components/ui/GenreChip';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PosterArt } from '@/components/media';
 import { GENRES } from '@/data';
 import { useSearchStore } from '@/store';
 import { useSeries } from '@/services/content';
@@ -119,6 +120,7 @@ export default function SearchScreen() {
         />
       ) : showEmptyResults ? (
         <EmptyState
+          fill
           icon="search-outline"
           title={t('search.emptyTitle', { query: debouncedQuery })}
           subtitle={t('search.emptySubtitle')}
@@ -146,7 +148,13 @@ export default function SearchScreen() {
 function SuggestedRow({ series, onPress }: { series: Series; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={styles.row} accessibilityRole="button" accessibilityLabel={`Open ${series.title}`}>
-      <LinearGradient colors={[series.posterColorFrom, series.posterColorTo]} style={styles.rowThumb} />
+      <LinearGradient colors={[series.posterColorFrom, series.posterColorTo]} style={styles.rowThumb}>
+        {series.posterImageUri ? (
+          <Image source={{ uri: series.posterImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <PosterArt series={series} />
+        )}
+      </LinearGradient>
       <View style={styles.rowText}>
         <Text style={styles.rowTitle} numberOfLines={1}>
           {series.title}
@@ -183,7 +191,7 @@ const styles = StyleSheet.create({
   clearText: { ...typography.bodyMedium, color: colors.accent },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  rowThumb: { width: 48, height: 68, borderRadius: radius.sm },
+  rowThumb: { width: 48, height: 68, borderRadius: radius.sm, overflow: 'hidden' },
   rowText: { flex: 1 },
   rowTitle: { ...typography.bodyMedium, color: colors.textPrimary },
   rowSubtitle: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },

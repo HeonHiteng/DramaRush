@@ -87,7 +87,7 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.name}>{displayName}</Text>
-            {user?.email && <Text style={styles.email}>{user.email}</Text>}
+            {user?.email ? <Text style={styles.email}>{user.email}</Text> : null}
             <View style={styles.badgeRow}>
               {subscription.isActive ? (
                 <PremiumBadge compact />

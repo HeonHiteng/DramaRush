@@ -56,6 +56,12 @@ const SLIDES: Slide[] = [
 
 export default function OnboardingScreen() {
   const [index, setIndex] = useState(0);
+  // FlatList's horizontal-item cells don't stretch to the list's own height
+  // via flexbox alone (its internal cell wrapper pins an explicit measured
+  // height instead of honoring alignItems: 'stretch' from an ancestor) — so
+  // centering content within "the available height" needs that height
+  // measured directly and applied to each slide explicitly.
+  const [listHeight, setListHeight] = useState(0);
   const listRef = useRef<FlatList<Slide>>(null);
   const completeOnboarding = useUserStore((s) => s.completeOnboarding);
   const { t } = useTranslation();
@@ -90,6 +96,8 @@ export default function OnboardingScreen() {
 
       <FlatList
         ref={listRef}
+        style={styles.flatList}
+        onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}
         data={SLIDES}
         horizontal
         pagingEnabled
@@ -99,7 +107,10 @@ export default function OnboardingScreen() {
         scrollEventThrottle={16}
         getItemLayout={(_, i) => ({ length: SLIDE_WIDTH, offset: SLIDE_WIDTH * i, index: i })}
         renderItem={({ item }) => (
-          <LinearGradient colors={item.colors} style={{ width: SLIDE_WIDTH }}>
+          <LinearGradient
+            colors={item.colors}
+            style={[styles.slide, { width: SLIDE_WIDTH }, listHeight > 0 && { height: listHeight }]}
+          >
             <View style={styles.illustration}>
               <View style={[styles.glow, { backgroundColor: item.glow }]} />
 
@@ -156,9 +167,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   skipText: { ...typography.bodyMedium, color: colors.textSecondary },
+  flatList: { flex: 1 },
+  slide: { justifyContent: 'center' },
   illustration: {
     height: 340,
-    marginTop: 90,
     alignItems: 'center',
     justifyContent: 'center',
   },
