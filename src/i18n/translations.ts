@@ -218,6 +218,9 @@ export const translations = {
     'player.seek': 'Seek',
     'player.lockedTitle': 'Episode {number} is locked',
     'player.subtitlePlaceholder': '[ Prototype subtitles placeholder ]',
+    'player.videoUnavailable': 'This episode is coming soon',
+    'player.tryAgainLater': 'Playback is busy right now. Please try again in a moment.',
+    'player.loadFailed': "Couldn't load this episode. Check your connection and try again.",
     'player.shareMessage': 'Check out "{title}" on {brand} (simulated share).',
 
     // Paywall
@@ -465,6 +468,9 @@ export const translations = {
     'player.seek': '快进快退',
     'player.lockedTitle': '第 {number} 集已锁定',
     'player.subtitlePlaceholder': '[ 原型字幕占位符 ]',
+    'player.videoUnavailable': '本集即将上线',
+    'player.tryAgainLater': '当前播放繁忙，请稍后再试。',
+    'player.loadFailed': '无法加载本集，请检查网络后重试。',
     'player.shareMessage': '在 {brand} 上查看"{title}"（模拟分享）。',
 
     'paywall.membersOnlyTitle': '会员专属剧集',
@@ -706,6 +712,9 @@ export const translations = {
     'player.seek': 'Leret',
     'player.lockedTitle': 'Episod {number} dikunci',
     'player.subtitlePlaceholder': '[ Ruang letak sari kata prototaip ]',
+    'player.videoUnavailable': 'Episod ini akan datang tidak lama lagi',
+    'player.tryAgainLater': 'Main balik sibuk sekarang. Sila cuba sebentar lagi.',
+    'player.loadFailed': 'Episod ini gagal dimuatkan. Semak sambungan anda dan cuba lagi.',
     'player.shareMessage': 'Lihat "{title}" di {brand} (kongsi simulasi).',
 
     'paywall.membersOnlyTitle': 'Episod khas ahli',

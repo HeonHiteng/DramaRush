@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "DramaRush",
-    "slug": "dramarush",
+    "name": "Keybox",
+    "slug": "keybox",
     "version": "1.0.0",
-    "scheme": "dramarush",
+    "scheme": "keybox",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",

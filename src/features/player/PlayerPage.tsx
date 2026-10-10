@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -9,9 +9,21 @@ import { VideoControls } from '@/components/media/VideoControls';
 import type { Episode } from '@/types';
 import { useLibraryStore, useSettingsStore } from '@/store';
 import { useTranslation } from '@/i18n/useTranslation';
+import type { TranslationKey } from '@/i18n/translations';
+import { fetchPlayback, isGrantFresh, type PlaybackErrorCode, type PlaybackGrant } from '@/services/playback';
+import { WatermarkOverlay } from './WatermarkOverlay';
 
 const SPEED_STEPS = [1, 1.25, 1.5, 2, 0.75];
 const AUTOPLAY_COUNTDOWN_SEC = 5;
+/** Automatic re-fetches of a fresh signed URL after a playback error, before giving up. */
+const MAX_SOURCE_RETRIES = 2;
+
+const NOTICE_KEYS: Partial<Record<PlaybackErrorCode, TranslationKey>> = {
+  unavailable: 'player.videoUnavailable',
+  rate_limited: 'player.tryAgainLater',
+  blocked: 'player.tryAgainLater',
+  budget: 'player.tryAgainLater',
+};
 
 interface PlayerPageProps {
   episode: Episode;
@@ -66,9 +78,74 @@ export function PlayerPage({
   const lockedNotifiedRef = useRef(false);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const player = useVideoPlayer(isUnlocked ? episode.videoUri : null, (p) => {
+  // Signed playback URL from the backend (playback-token). Only requested when
+  // this page is the active one — neighbouring pages don't preload, since
+  // every buffered second is billed and counts toward the rate limit.
+  const [grant, setGrant] = useState<PlaybackGrant | null>(null);
+  const [playbackError, setPlaybackError] = useState<PlaybackErrorCode | null>(null);
+  const loadingSourceRef = useRef(false);
+  /** Set when a new source is loading: seek target (or null), cleared (undefined) once ready. */
+  const pendingSeekRef = useRef<number | null | undefined>(undefined);
+  const sourceRetriesRef = useRef(0);
+  const lastPositionRef = useRef(0);
+  const isActiveRef = useRef(isActive);
+  const onLockedRef = useRef(onLocked);
+  useEffect(() => {
+    isActiveRef.current = isActive;
+    onLockedRef.current = onLocked;
+  });
+
+  const player = useVideoPlayer(null, (p) => {
     p.loop = false;
     p.timeUpdateEventInterval = 0.4;
+  });
+
+  /** Fetches a (fresh) signed URL and loads it, resuming at `resumeAt` seconds. */
+  const loadSource = useCallback(
+    async (resumeAt: number | null, force: boolean) => {
+      if (loadingSourceRef.current) return;
+      loadingSourceRef.current = true;
+      const result = await fetchPlayback(episode.id, { force });
+      loadingSourceRef.current = false;
+      if (!result.ok) {
+        setPlaybackError(result.code);
+        // The server is the authority: if it says locked, show the paywall.
+        if (result.code === 'not_entitled') onLockedRef.current();
+        return;
+      }
+      setPlaybackError(null);
+      setGrant(result.grant);
+      pendingSeekRef.current = resumeAt;
+      player.replace({ uri: result.grant.hlsUrl, contentType: 'hls' }, true);
+      // On web, replace() already starts playback; a second play() would race
+      // the load. Native keeps the previous paused state, so start it here.
+      if (Platform.OS !== 'web' && isActiveRef.current) player.play();
+    },
+    [episode.id, player]
+  );
+
+  useEventListener(player, 'statusChange', ({ status: next }) => {
+    if (next === 'readyToPlay') {
+      sourceRetriesRef.current = 0;
+      const justLoaded = pendingSeekRef.current !== undefined;
+      if (pendingSeekRef.current !== null && pendingSeekRef.current !== undefined) {
+        player.currentTime = pendingSeekRef.current;
+      }
+      pendingSeekRef.current = undefined;
+      // Start (again) once the new source can play. On web, React re-applies
+      // the <video src> after replace(), which reloads the element and drops
+      // the play() that replace() issued — while player.playing still says
+      // true. play() is idempotent, so just call it.
+      if (justLoaded && isActiveRef.current) player.play();
+    } else if (next === 'error' && isUnlocked) {
+      // Most often an expired token (paused > 15 min): get a new one and continue.
+      if (sourceRetriesRef.current < MAX_SOURCE_RETRIES) {
+        sourceRetriesRef.current += 1;
+        loadSource(lastPositionRef.current || null, true);
+      } else {
+        setPlaybackError('network_error');
+      }
+    }
   });
 
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
@@ -81,7 +158,7 @@ export function PlayerPage({
   });
 
   const duration = player.duration || episode.durationSec;
-  const buffering = isUnlocked && status === 'loading';
+  const buffering = isUnlocked && !playbackError && (status === 'loading' || (isActive && !grant));
 
   useEventListener(player, 'playToEnd', () => {
     if (!hasNext) return;
@@ -100,18 +177,23 @@ export function PlayerPage({
     lockedNotifiedRef.current = false;
 
     if (isActive) {
-      if (!hasResumedRef.current) {
-        hasResumedRef.current = true;
-        const saved = useLibraryStore.getState().getProgress(episode.id);
-        if (saved && saved.positionSec > 0 && !saved.completed) {
-          player.currentTime = saved.positionSec;
+      if (!isGrantFresh(grant)) {
+        let resumeAt: number | null = lastPositionRef.current || null;
+        if (!hasResumedRef.current) {
+          hasResumedRef.current = true;
+          const saved = useLibraryStore.getState().getProgress(episode.id);
+          if (saved && saved.positionSec > 0 && !saved.completed) {
+            resumeAt = saved.positionSec;
+          }
         }
+        loadSource(resumeAt, grant !== null);
+      } else {
+        player.play();
       }
       if (!hasRecordedHistoryRef.current) {
         hasRecordedHistoryRef.current = true;
         recordHistory(episode.id, seriesId);
       }
-      player.play();
     } else {
       player.pause();
       setNextCountdown(null);
@@ -121,6 +203,7 @@ export function PlayerPage({
 
   useEffect(() => {
     if (!isActive || !isUnlocked) return;
+    if (currentTime > 0) lastPositionRef.current = currentTime;
     if (currentTime > 0 && duration > 0) {
       setProgress(episode.id, currentTime, duration);
     }
@@ -146,8 +229,18 @@ export function PlayerPage({
 
   const togglePlay = () => {
     if (!isUnlocked) return;
-    if (player.playing) player.pause();
-    else player.play();
+    if (player.playing) {
+      player.pause();
+      return;
+    }
+    // Resuming after an error or after the signed URL expired: fetch a new one.
+    if (playbackError || !isGrantFresh(grant)) {
+      sourceRetriesRef.current = 0;
+      setPlaybackError(null);
+      loadSource(lastPositionRef.current || null, true);
+      return;
+    }
+    player.play();
   };
 
   const cycleSpeed = () => {
@@ -180,6 +273,15 @@ export function PlayerPage({
       ) : (
         <LockedPoster episodeNumber={episode.number} episodeTitle={episode.title} lockedTitle={t('player.lockedTitle', { number: episode.number })} />
       )}
+
+      {isUnlocked && playbackError && playbackError !== 'not_entitled' && (
+        <View style={[StyleSheet.absoluteFill, styles.noticeWrap, { pointerEvents: 'none' }]}>
+          <Ionicons name="time-outline" size={28} color={colors.textTertiary} />
+          <Text style={styles.noticeText}>{t(NOTICE_KEYS[playbackError] ?? 'player.loadFailed')}</Text>
+        </View>
+      )}
+
+      {isUnlocked && grant && <WatermarkOverlay code={grant.watermarkCode} />}
 
       <Pressable
         style={StyleSheet.absoluteFill}
@@ -254,6 +356,8 @@ const styles = StyleSheet.create({
   lockedTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: 6 },
   lockedSubtitle: { ...typography.body, color: colors.textTertiary, textAlign: 'center' },
   subtitleWrap: { position: 'absolute', left: 24, right: 24, alignItems: 'center' },
+  noticeWrap: { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
+  noticeText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
   subtitleText: {
     ...typography.bodyMedium,
     color: colors.white,

@@ -4,7 +4,7 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { GenreChip } from '@/components/ui/GenreChip';
 import { FilePicker } from './FilePicker';
-import { uploadEpisodeVideo } from '@/services/content';
+import { uploadEpisodeVideo, useEpisodeVideoStatus } from '@/services/content';
 import type { EpisodeInput } from '@/services/content';
 import { EPISODE_ACCESS_TYPES } from '@/data/adminPresets';
 import type { Episode, EpisodeAccessType } from '@/types';
@@ -13,17 +13,22 @@ interface AdminEpisodeFormProps {
   seriesId: string;
   initial?: Episode;
   defaultNumber?: number;
+  /** Saves the episode row; throw to show an error in the form. */
   onSubmit: (input: EpisodeInput) => Promise<void>;
+  /** Called after the episode is saved and any chosen video has been handed to Cloudflare. */
+  onDone: () => void;
   submitLabel: string;
 }
 
-export function AdminEpisodeForm({ seriesId, initial, defaultNumber, onSubmit, submitLabel }: AdminEpisodeFormProps) {
+export function AdminEpisodeForm({ seriesId, initial, defaultNumber, onSubmit, onDone, submitLabel }: AdminEpisodeFormProps) {
   const [number, setNumber] = useState(initial ? String(initial.number) : String(defaultNumber ?? 1));
   const [title, setTitle] = useState(initial?.title ?? '');
   const [durationMin, setDurationMin] = useState(initial ? String(Math.round(initial.durationSec / 60)) : '10');
   const [access, setAccess] = useState<EpisodeAccessType>(initial?.access ?? 'free');
   const [coinPrice, setCoinPrice] = useState(initial?.coinPrice ? String(initial.coinPrice) : '20');
+  const [published, setPublished] = useState(initial?.published ?? false);
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const { data: videoStatus, refetch: refetchVideoStatus } = useEpisodeVideoStatus(initial?.id);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -38,37 +43,51 @@ export function AdminEpisodeForm({ seriesId, initial, defaultNumber, onSubmit, s
     if (access === 'coin' && (!coinPrice || Number(coinPrice) <= 0)) return setError('Coin price is required for coin-unlock episodes.');
     if (!initial && !videoFile) return setError('Choose a video file.');
 
-    let videoUri = initial?.videoUri ?? '';
-    try {
-      if (videoFile) {
-        setUploading(true);
-        videoUri = await uploadEpisodeVideo(videoFile, seriesId, numberValue);
-        setUploading(false);
-      }
-    } catch (err) {
-      setUploading(false);
-      setError(err instanceof Error ? `Upload failed: ${err.message}` : 'Upload failed.');
-      return;
-    }
+    const episodeId = initial?.id ?? `${seriesId}-ep${numberValue}`;
 
+    // Save the episode first: the video upload is attached to an existing episode.
     setSubmitting(true);
     try {
       await onSubmit({
-        id: initial?.id ?? `${seriesId}-ep${numberValue}`,
+        id: episodeId,
         seriesId,
         number: numberValue,
         title: title.trim(),
         durationSec,
-        videoUri,
         access,
         coinPrice: access === 'coin' ? Number(coinPrice) : undefined,
+        published,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong saving this episode.');
-    } finally {
       setSubmitting(false);
+      setError(err instanceof Error ? err.message : 'Something went wrong saving this episode.');
+      return;
     }
+    setSubmitting(false);
+
+    if (videoFile) {
+      setUploading(true);
+      try {
+        await uploadEpisodeVideo(videoFile, episodeId);
+        setVideoFile(null);
+        refetchVideoStatus();
+      } catch (err) {
+        setUploading(false);
+        setError(err instanceof Error ? `Episode saved, but the video upload failed: ${err.message}` : 'Video upload failed.');
+        return;
+      }
+      setUploading(false);
+    }
+    onDone();
   };
+
+  const videoStatusText = videoStatus
+    ? videoStatus.status === 'ready'
+      ? `ready${videoStatus.durationSec ? ` (${Math.round(videoStatus.durationSec)}s)` : ''}`
+      : videoStatus.status === 'error'
+        ? `failed — ${videoStatus.errorReason ?? 'unknown error'}`
+        : 'processing on Cloudflare…'
+    : undefined;
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
@@ -99,13 +118,20 @@ export function AdminEpisodeForm({ seriesId, initial, defaultNumber, onSubmit, s
         </Field>
       )}
 
+      <Field label="Visibility">
+        <View style={styles.chipRow}>
+          <GenreChip label="Draft" selected={!published} onPress={() => setPublished(false)} />
+          <GenreChip label="Published" selected={published} onPress={() => setPublished(true)} />
+        </View>
+      </Field>
+
       <Field label="Video file">
         <FilePicker
           accept="video/*"
           label="Choose a video file"
           replaceLabel="Replace video file"
           onFileSelected={setVideoFile}
-          currentFileUri={initial?.videoUri}
+          currentFileUri={videoStatusText}
         />
       </Field>
 

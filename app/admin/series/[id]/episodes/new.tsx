@@ -28,13 +28,9 @@ export default function NewEpisodeScreen() {
         submitLabel="Create Episode"
         onSubmit={async (input) => {
           setError(null);
-          try {
-            await createEpisode.mutateAsync(input);
-            goBack(`/admin/series/${seriesId}`);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to create episode.');
-          }
+          await createEpisode.mutateAsync(input);
         }}
+        onDone={() => goBack(`/admin/series/${seriesId}`)}
       />
     </Screen>
   );

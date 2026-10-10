@@ -18,9 +18,10 @@ export interface Episode {
   number: number;
   title: string;
   durationSec: number;
-  videoUri: string;
   access: EpisodeAccessType;
   coinPrice?: number;
+  /** Unpublished episodes are only returned to admins. */
+  published: boolean;
 }
 
 export interface CastMember {

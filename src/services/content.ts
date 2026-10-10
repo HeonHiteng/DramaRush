@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { CastMember, Episode, EpisodeAccessType, Genre, Series, SeriesStatus } from '@/types';
 
@@ -27,10 +28,13 @@ interface EpisodeRow {
   number: number;
   title: string;
   duration_sec: number;
-  video_uri: string;
   access: string;
   coin_price: number | null;
+  published: boolean;
 }
+
+/** Episode columns the app reads. Videos are never selected: playback goes through playback-token. */
+const EPISODE_COLUMNS = 'id, series_id, number, title, duration_sec, access, coin_price, published';
 
 function mapSeries(row: SeriesRow): Series {
   return {
@@ -59,9 +63,9 @@ function mapEpisode(row: EpisodeRow): Episode {
     number: row.number,
     title: row.title,
     durationSec: row.duration_sec,
-    videoUri: row.video_uri,
     access: row.access as Episode['access'],
     coinPrice: row.coin_price ?? undefined,
+    published: row.published,
   };
 }
 
@@ -72,7 +76,7 @@ async function fetchSeries(): Promise<Series[]> {
 }
 
 async function fetchEpisodes(): Promise<Episode[]> {
-  const { data, error } = await supabase.from('episodes').select('*').order('number', { ascending: true });
+  const { data, error } = await supabase.from('episodes').select(EPISODE_COLUMNS).order('number', { ascending: true });
   if (error) throw error;
   return (data as EpisodeRow[]).map(mapEpisode);
 }
@@ -208,9 +212,9 @@ export interface EpisodeInput {
   number: number;
   title: string;
   durationSec: number;
-  videoUri: string;
   access: EpisodeAccessType;
   coinPrice?: number;
+  published: boolean;
 }
 
 function toEpisodeRow(input: EpisodeInput) {
@@ -220,9 +224,9 @@ function toEpisodeRow(input: EpisodeInput) {
     number: input.number,
     title: input.title,
     duration_sec: input.durationSec,
-    video_uri: input.videoUri,
     access: input.access,
     coin_price: input.access === 'coin' ? (input.coinPrice ?? null) : null,
+    published: input.published,
   };
 }
 
@@ -253,6 +257,13 @@ export function useDeleteEpisode() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Remove the episode's videos from Cloudflare first — deleting only the
+      // row would leave them stored (and billed) with nothing pointing at them.
+      const { data: removed, error: videoError } = await supabase.functions.invoke('admin-video-delete', {
+        body: { episode_id: id },
+      });
+      if (videoError) throw await functionError(videoError);
+      if (removed?.failed?.length) throw new Error('Could not delete the episode video from Cloudflare. Try again.');
       const { error } = await supabase.from('episodes').delete().eq('id', id);
       if (error) throw error;
     },
@@ -260,15 +271,64 @@ export function useDeleteEpisode() {
   });
 }
 
-/** Uploads a video file to the public episode-videos bucket and returns its public URL. */
-export async function uploadEpisodeVideo(file: File, seriesId: string, episodeNumber: number): Promise<string> {
-  const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.mp4';
-  const path = `${seriesId}/ep${episodeNumber}${ext}`;
-  const { error } = await supabase.storage.from('episode-videos').upload(path, file, {
-    contentType: file.type || 'video/mp4',
-    upsert: true,
+async function functionError(error: unknown): Promise<Error> {
+  if (error instanceof FunctionsHttpError) {
+    const body = await error.context.json().catch(() => null);
+    return new Error(body?.error ?? `HTTP ${error.context.status}`);
+  }
+  return error instanceof Error ? error : new Error('Network error');
+}
+
+/** Cloudflare's single-request upload limit; bigger files go through `npm run upload-series` (backend). */
+const MAX_IN_APP_UPLOAD_BYTES = 200 * 1024 * 1024;
+
+/**
+ * Uploads an episode's video to Cloudflare Stream (admins only). The episode
+ * row must already exist. The backend issues a one-time upload URL; the file
+ * goes straight to Cloudflare, which processes it and tells the backend when
+ * it's ready (usually within a minute). A new video replaces the old one once
+ * it's ready.
+ */
+export async function uploadEpisodeVideo(file: File, episodeId: string): Promise<void> {
+  if (file.size > MAX_IN_APP_UPLOAD_BYTES) {
+    throw new Error('Videos over 200 MB must be uploaded by the backend team (npm run upload-series).');
+  }
+  const { data, error } = await supabase.functions.invoke('admin-video-upload', {
+    body: { episode_id: episodeId, file_size: file.size, file_name: file.name },
   });
-  if (error) throw error;
-  const { data } = supabase.storage.from('episode-videos').getPublicUrl(path);
-  return data.publicUrl;
+  if (error) throw await functionError(error);
+
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(data.upload_url, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`Cloudflare rejected the upload (HTTP ${res.status}).`);
+}
+
+export interface EpisodeVideoStatus {
+  status: 'pending_upload' | 'processing' | 'ready' | 'error';
+  durationSec: number | null;
+  errorReason: string | null;
+}
+
+/** Latest video of an episode, for the admin screens (video_assets is admin-readable only). */
+export function useEpisodeVideoStatus(episodeId: string | undefined) {
+  return useQuery({
+    queryKey: ['episode-video', episodeId],
+    enabled: !!episodeId,
+    refetchInterval: (query) => {
+      const status = (query.state.data as EpisodeVideoStatus | null)?.status;
+      return status === 'pending_upload' || status === 'processing' ? 5000 : false;
+    },
+    queryFn: async (): Promise<EpisodeVideoStatus | null> => {
+      const { data, error } = await supabase
+        .from('video_assets')
+        .select('status, duration_sec, error_reason')
+        .eq('episode_id', episodeId!)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? { status: data.status, durationSec: data.duration_sec, errorReason: data.error_reason } : null;
+    },
+  });
 }

@@ -18,7 +18,7 @@ export const supabaseConfigError: string | null =
     ? 'Missing Supabase configuration. Set EXPO_PUBLIC_SUPABASE_URL and ' +
       'EXPO_PUBLIC_SUPABASE_ANON_KEY in a .env file at the project root ' +
       "(see .env.example) — get these values from your Supabase project's " +
-      'Settings → API page. See the DramaRush-Backend repo README for full setup steps.'
+      'Settings → API page. See the backend repo (DramaRush-Backend) README for full setup steps.'
     : null;
 
 export const supabase: SupabaseClient = supabaseConfigError

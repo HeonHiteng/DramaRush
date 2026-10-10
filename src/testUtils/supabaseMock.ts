@@ -1,20 +1,28 @@
 /**
  * A tiny in-memory stand-in for @supabase/supabase-js, just enough to
  * exercise the store logic in src/store/*.ts (which are otherwise thin
- * wrappers around supabase.from()/rpc() calls). The unlock_episode_with_coins
- * and redeem_ad_reward RPCs are re-implemented here in JS to mirror the real
- * SQL functions (see DramaRush-Backend's 20260802000004_functions.sql) so
- * the store-level "no double charge" / "insufficient coins" guarantees stay
- * covered by fast, offline unit tests. The SQL itself is reviewed separately
- * — this does not replace testing against a real Postgres instance.
+ * wrappers around supabase.from()/rpc() calls). The RPCs are re-implemented
+ * here in JS to mirror the real SQL functions in DramaRush-Backend
+ * (20261009150000_lock_down_entitlements.sql): entitlement tables are
+ * read-only for clients, and coins / unlocks / membership only change
+ * through RPCs. The SQL itself is tested separately against Postgres
+ * (DramaRush-Backend/supabase/tests) — this does not replace that.
  */
+import { COIN_PACKAGES, SUBSCRIPTION_PLANS } from '../data/wallet';
 
 type Row = Record<string, any>;
 
 interface State {
   userId: string | null;
+  isAdmin: boolean;
+  simulatedPayments: boolean;
   tables: Record<string, Row[]>;
 }
+
+/** Tables clients may only read (writes go through RPCs), as on the real backend. */
+const READ_ONLY_TABLES = new Set(['wallets', 'transactions', 'subscriptions', 'unlocks', 'daily_mission_claims']);
+const STARTING_BALANCE = 150;
+const AD_UNLOCKS_PER_DAY = 20;
 
 const TEST_USER_ID = 'test-user-1';
 
@@ -38,11 +46,21 @@ function defaultTables(): Record<string, Row[]> {
   };
 }
 
-const state: State = { userId: TEST_USER_ID, tables: defaultTables() };
+const state: State = { userId: TEST_USER_ID, isAdmin: true, simulatedPayments: true, tables: defaultTables() };
 
 export function __reset() {
   state.userId = TEST_USER_ID;
+  state.isAdmin = true;
+  state.simulatedPayments = true;
   state.tables = defaultTables();
+}
+
+export function __setAdmin(isAdmin: boolean) {
+  state.isAdmin = isAdmin;
+}
+
+export function __setSimulatedPayments(enabled: boolean) {
+  state.simulatedPayments = enabled;
 }
 
 export function __setUserId(userId: string | null) {
@@ -117,6 +135,9 @@ class MockQueryBuilder implements PromiseLike<{ data: any; error: any }> {
   }
 
   private execute(): { data: any; error: any } {
+    if (this.opType !== 'select' && READ_ONLY_TABLES.has(this.tableName)) {
+      return { data: null, error: { code: '42501', message: `permission denied for table ${this.tableName}` } };
+    }
     const table = state.tables[this.tableName] ?? (state.tables[this.tableName] = []);
     let resultRows: Row[] = [];
 
@@ -218,7 +239,12 @@ async function rpc(name: string, params: Record<string, unknown>) {
     if (!episode || episode.access !== 'ad_unlock') {
       return { data: null, error: { message: `episode ${episodeId} is not an ad-unlock episode` } };
     }
-    state.tables.unlocks.push({ user_id: userId, episode_id: episodeId });
+    const today = new Date().toISOString().slice(0, 10);
+    const adUnlocksToday = state.tables.unlocks.filter(
+      (u) => u.user_id === userId && u.via === 'ad' && String(u.created_at).startsWith(today)
+    ).length;
+    if (adUnlocksToday >= AD_UNLOCKS_PER_DAY) return { data: false, error: null };
+    state.tables.unlocks.push({ user_id: userId, episode_id: episodeId, via: 'ad', created_at: new Date().toISOString() });
     state.tables.transactions.unshift(makeTransaction('reward', 'Unlocked via rewarded ad', 0));
     return { data: true, error: null };
   }
@@ -239,7 +265,83 @@ async function rpc(name: string, params: Record<string, unknown>) {
     return { data: reward, error: null };
   }
 
+  const wallet = () => state.tables.wallets.find((w) => w.user_id === userId)!;
+  const subscription = () => state.tables.subscriptions.find((s) => s.user_id === userId)!;
+  const paymentsDisabled = { data: null, error: { message: 'payments_disabled' } };
+  const adminOnly = { data: null, error: { message: 'admin_only' } };
+
+  if (name === 'simulate_purchase') {
+    if (!state.simulatedPayments) return paymentsDisabled;
+    const pkg = COIN_PACKAGES.find((p) => p.id === params.p_package_id);
+    if (!pkg) return { data: null, error: { message: `package ${params.p_package_id} not found` } };
+    wallet().balance += pkg.coins + pkg.bonusCoins;
+    state.tables.transactions.unshift(makeTransaction('purchase', `Purchased ${pkg.coins} coins (${pkg.priceLabel})`, pkg.coins + pkg.bonusCoins));
+    return { data: wallet().balance, error: null };
+  }
+
+  if (name === 'simulate_subscribe') {
+    if (!state.simulatedPayments) return paymentsDisabled;
+    const plan = SUBSCRIPTION_PLANS.find((p) => p.id === params.p_plan_id);
+    if (!plan) return { data: null, error: { message: `plan ${params.p_plan_id} not found` } };
+    const started = new Date();
+    const renews = new Date(started);
+    if (plan.id === 'monthly') renews.setMonth(renews.getMonth() + 1);
+    else renews.setFullYear(renews.getFullYear() + 1);
+    Object.assign(subscription(), { is_active: true, plan_id: plan.id, started_at: started.toISOString(), renews_at: renews.toISOString() });
+    if (plan.bonusCoins > 0) {
+      wallet().balance += plan.bonusCoins;
+      state.tables.transactions.unshift(makeTransaction('bonus', `${plan.title} bonus`, plan.bonusCoins));
+    }
+    return { data: { ...subscription() }, error: null };
+  }
+
+  if (name === 'cancel_subscription') {
+    if (!state.simulatedPayments) return paymentsDisabled;
+    subscription().is_active = false;
+    return { data: { ...subscription() }, error: null };
+  }
+
+  if (name === 'reset_my_data') {
+    if (!state.simulatedPayments) return paymentsDisabled;
+    for (const t of ['favorites', 'unlocks', 'watch_history', 'progress', 'recent_searches', 'transactions', 'daily_mission_claims']) {
+      state.tables[t] = state.tables[t].filter((r) => r.user_id !== userId);
+    }
+    wallet().balance = STARTING_BALANCE;
+    Object.assign(subscription(), { is_active: false, plan_id: null, started_at: null, renews_at: null });
+    return { data: null, error: null };
+  }
+
+  if (name === 'demo_set_balance') {
+    if (!state.simulatedPayments) return paymentsDisabled;
+    if (!state.isAdmin) return adminOnly;
+    const next = params.p_balance as number;
+    const old = wallet().balance;
+    wallet().balance = next;
+    state.tables.transactions.unshift(makeTransaction('reset', `Demo controls: balance set to ${next}`, next - old));
+    return { data: next, error: null };
+  }
+
+  if (name === 'demo_set_all_unlocked') {
+    if (!state.simulatedPayments) return paymentsDisabled;
+    if (!state.isAdmin) return adminOnly;
+    state.tables.unlocks = state.tables.unlocks.filter((u) => u.user_id !== userId);
+    if (params.p_unlocked) {
+      for (const e of state.tables.episodes.filter((ep) => ep.access !== 'free')) {
+        state.tables.unlocks.push({ user_id: userId, episode_id: e.id });
+      }
+    }
+    return { data: null, error: null };
+  }
+
   return { data: null, error: { message: `unknown rpc ${name}` } };
+}
+
+/** Edge Functions (playback-token etc.). Tests set the handler they need. */
+type InvokeHandler = (name: string, body: unknown) => Promise<{ data: any; error: any }>;
+let invokeHandler: InvokeHandler = async (name) => ({ data: null, error: new Error(`no mock for function ${name}`) });
+
+export function __setInvokeHandler(handler: InvokeHandler) {
+  invokeHandler = handler;
 }
 
 export const supabase = {
@@ -252,4 +354,7 @@ export const supabase = {
   },
   from: (table: string) => new MockQueryBuilder(table),
   rpc,
+  functions: {
+    invoke: (name: string, opts?: { body?: unknown }) => invokeHandler(name, opts?.body),
+  },
 };

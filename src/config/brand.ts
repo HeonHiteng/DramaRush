@@ -1,13 +1,13 @@
 /**
- * Central brand configuration.
- * Change the brand name/identity here after client review — nothing else
- * in the app should hardcode the product name.
+ * Central brand configuration — nothing else in the app should hardcode the
+ * product name. "Keybox" is the real product name ("DramaRush" was the
+ * prototype placeholder).
  */
 export const BRAND = {
-  name: 'DramaRush',
+  name: 'Keybox',
   tagline: 'Stories made for every moment.',
-  legalName: 'DramaRush Prototype',
-  scheme: 'dramarush',
+  legalName: 'Keybox',
+  scheme: 'keybox',
   supportEmail: 'support@dramarush.app',
   websiteUrl: 'https://dramarush.app',
   currency: {

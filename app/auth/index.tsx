@@ -158,7 +158,7 @@ export default function AuthScreen() {
           {copy.showLegalDisclosure && (
             <Text style={styles.legal}>
               Google sign-in requires one-time provider setup in the backend — see the
-              DramaRush-Backend README. Everything else here is a real account.
+              backend README. Everything else here is a real account.
             </Text>
           )}
         </ScrollView>

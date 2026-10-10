@@ -7,7 +7,7 @@ import { StackHeader } from '@/components/ui/StackHeader';
 import { AppButton } from '@/components/ui/AppButton';
 import { SubscriptionCard } from '@/components/ui/SubscriptionCard';
 import { SUBSCRIPTION_PLANS } from '@/data';
-import { useSubscriptionStore, useWalletStore } from '@/store';
+import { useSubscriptionStore } from '@/store';
 import { BRAND } from '@/config';
 import { formatDateLong } from '@/utils/format';
 import { goBack } from '@/utils/navigation';
@@ -27,7 +27,6 @@ const BENEFIT_KEYS: TranslationKey[] = [
 
 export default function SubscriptionScreen() {
   const subscription = useSubscriptionStore();
-  const addCoins = useWalletStore((s) => s.addCoins);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanId>(subscription.planId ?? 'annual');
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -36,15 +35,15 @@ export default function SubscriptionScreen() {
 
   const plan = SUBSCRIPTION_PLANS.find((p) => p.id === selectedPlan)!;
 
-  const startMembership = () => {
+  const startMembership = async () => {
     setProcessing(true);
-    setTimeout(() => {
-      subscription.activate(selectedPlan);
-      addCoins(plan.bonusCoins, `${plan.title} bonus coins`, 'bonus');
-      setProcessing(false);
+    // Bonus coins are granted by the server together with the membership.
+    const ok = await subscription.activate(selectedPlan);
+    setProcessing(false);
+    if (ok) {
       setSuccess(true);
       successHaptic();
-    }, 1200);
+    }
   };
 
   const cancelMembership = () => {

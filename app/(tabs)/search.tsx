@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { BRAND } from '@/config';
 import { FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -58,7 +59,7 @@ export default function SearchScreen() {
           placeholderTextColor={colors.textTertiary}
           style={styles.input}
           returnKeyType="search"
-          accessibilityLabel="Search DramaRush"
+          accessibilityLabel={`Search ${BRAND.name}`}
           autoCorrect={false}
         />
         {query.length > 0 && (
