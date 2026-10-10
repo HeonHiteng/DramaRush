@@ -12,6 +12,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import type { TranslationKey } from '@/i18n/translations';
 import { fetchPlayback, isGrantFresh, type PlaybackErrorCode, type PlaybackGrant } from '@/services/playback';
 import { WatermarkOverlay } from './WatermarkOverlay';
+import { attachHls, needsHlsJs, type HlsAttachment } from './hlsBridge';
 
 const SPEED_STEPS = [1, 1.25, 1.5, 2, 0.75];
 const AUTOPLAY_COUNTDOWN_SEC = 5;
@@ -88,6 +89,9 @@ export function PlayerPage({
   const pendingSeekRef = useRef<number | null | undefined>(undefined);
   const sourceRetriesRef = useRef(0);
   const lastPositionRef = useRef(0);
+  /** hls.js instance on web browsers without native HLS (see hlsBridge.web.ts). */
+  const hlsRef = useRef<HlsAttachment | null>(null);
+  const retryAfterErrorRef = useRef<() => void>(() => {});
   const isActiveRef = useRef(isActive);
   const onLockedRef = useRef(onLocked);
   useEffect(() => {
@@ -116,6 +120,22 @@ export function PlayerPage({
       setPlaybackError(null);
       setGrant(result.grant);
       pendingSeekRef.current = resumeAt;
+
+      if (needsHlsJs()) {
+        // Browser can't play HLS itself: hls.js feeds the mounted <video>.
+        hlsRef.current?.destroy();
+        hlsRef.current = null;
+        try {
+          hlsRef.current = await attachHls(player, result.grant.hlsUrl, () => retryAfterErrorRef.current());
+        } catch (err) {
+          console.warn('hls.js attach failed', err);
+          setPlaybackError('server_error');
+          return;
+        }
+        if (isActiveRef.current) player.play();
+        return;
+      }
+
       player.replace({ uri: result.grant.hlsUrl, contentType: 'hls' }, true);
       // On web, replace() already starts playback; a second play() would race
       // the load. Native keeps the previous paused state, so start it here.
@@ -123,6 +143,23 @@ export function PlayerPage({
     },
     [episode.id, player]
   );
+
+  /** Most often an expired token (paused > 15 min): get a new URL and continue where we were. */
+  const retryAfterError = useCallback(() => {
+    if (!isUnlocked) return;
+    if (sourceRetriesRef.current < MAX_SOURCE_RETRIES) {
+      sourceRetriesRef.current += 1;
+      loadSource(lastPositionRef.current || null, true);
+    } else {
+      setPlaybackError('network_error');
+    }
+  }, [isUnlocked, loadSource]);
+
+  useEffect(() => {
+    retryAfterErrorRef.current = retryAfterError;
+  });
+
+  useEffect(() => () => hlsRef.current?.destroy(), []);
 
   useEventListener(player, 'statusChange', ({ status: next }) => {
     if (next === 'readyToPlay') {
@@ -137,14 +174,8 @@ export function PlayerPage({
       // the play() that replace() issued — while player.playing still says
       // true. play() is idempotent, so just call it.
       if (justLoaded && isActiveRef.current) player.play();
-    } else if (next === 'error' && isUnlocked) {
-      // Most often an expired token (paused > 15 min): get a new one and continue.
-      if (sourceRetriesRef.current < MAX_SOURCE_RETRIES) {
-        sourceRetriesRef.current += 1;
-        loadSource(lastPositionRef.current || null, true);
-      } else {
-        setPlaybackError('network_error');
-      }
+    } else if (next === 'error') {
+      retryAfterError();
     }
   });
 
