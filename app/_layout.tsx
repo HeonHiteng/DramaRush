@@ -7,27 +7,10 @@ import { Stack } from 'expo-router';
 import { colors } from '@/theme';
 import { WebFrame } from '@/components/ui/WebFrame';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { StartupErrorScreen } from '@/components/ui/StartupErrorScreen';
 import { queryClient } from '@/lib/queryClient';
-import { supabaseConfigError } from '@/lib/supabase';
 import { AuthListener } from '@/store/AuthListener';
 
 export default function RootLayout() {
-  if (supabaseConfigError) {
-    // Render directly, without AuthListener/QueryClientProvider/Stack — none
-    // of them should touch the (unusable) Supabase client in this state.
-    return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
-          <WebFrame>
-            <StatusBar style="light" />
-            <StartupErrorScreen message={supabaseConfigError} />
-          </WebFrame>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    );
-  }
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>

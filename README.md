@@ -59,22 +59,19 @@ Requires **Node.js ≥ 20.19.4** (or 22.13+). Expo SDK 57 / React Native 0.86 wi
 older Node 20.x builds — Metro's bundler crashes on missing `util.styleText`. Check your version
 with `node --version` before installing, and upgrade first if needed (nvm, or the official installer).
 
-### 1. Backend
+### Backend
 
-This app needs a Supabase project to run against. Follow the **[DramaRush-Backend](../DramaRush-Backend)**
-repo's README once (create a free Supabase project, push the schema, enable anonymous sign-in) —
-it takes about five minutes and only needs to be done once.
+There is one backend and every build uses it: the Keybox Supabase project (`keybox`, ref
+`ogqagauogrzezfmveewk`) plus Cloudflare Stream, maintained in
+**[DramaRush-Backend](../DramaRush-Backend)**. Its URL and public anon key are in
+`src/config/backend.ts` — no `.env` is needed, and an old `.env` is ignored. (The anon key is
+meant to be public; Row Level Security and server-side functions decide what clients can do.)
 
-### 2. App
+### App
 
 ```bash
 npm install
-cp .env.example .env
 ```
-
-Fill in `.env` with your Supabase project's **Project URL** and **anon/public key**
-(Settings → API in the Supabase dashboard). The app will throw a clear startup error if these are
-missing.
 
 ## Running the app
 
@@ -104,9 +101,7 @@ configured with the build command, output directory, and the SPA rewrite rule ne
 refreshing on a non-root route (e.g. `/profile`) doesn't 404.
 
 1. At [vercel.com/new](https://vercel.com/new), import this GitHub repo.
-2. Add two environment variables in the project's settings — same values as your local `.env`:
-   `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
-3. Deploy. Vercel runs `npm run build:web` (`expo export --platform web`) and serves the resulting
+2. Deploy (no environment variables needed — the backend is set in `src/config/backend.ts`). Vercel runs `npm run build:web` (`expo export --platform web`) and serves the resulting
    `dist/` folder.
 
 `package.json` pins `"engines": { "node": "22.x" }` — this repo's Metro bundler has issues on
