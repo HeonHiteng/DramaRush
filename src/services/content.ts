@@ -31,10 +31,12 @@ interface EpisodeRow {
   access: string;
   coin_price: number | null;
   published: boolean;
+  video_width: number | null;
+  video_height: number | null;
 }
 
 /** Episode columns the app reads. Videos are never selected: playback goes through playback-token. */
-const EPISODE_COLUMNS = 'id, series_id, number, title, duration_sec, access, coin_price, published';
+const EPISODE_COLUMNS = 'id, series_id, number, title, duration_sec, access, coin_price, published, video_width, video_height';
 
 function mapSeries(row: SeriesRow): Series {
   return {
@@ -66,6 +68,8 @@ function mapEpisode(row: EpisodeRow): Episode {
     access: row.access as Episode['access'],
     coinPrice: row.coin_price ?? undefined,
     published: row.published,
+    videoWidth: row.video_width ?? undefined,
+    videoHeight: row.video_height ?? undefined,
   };
 }
 

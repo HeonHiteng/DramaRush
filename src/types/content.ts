@@ -22,6 +22,9 @@ export interface Episode {
   coinPrice?: number;
   /** Unpublished episodes are only returned to admins. */
   published: boolean;
+  /** Picture size of the episode's video (from Cloudflare); width > height = landscape. */
+  videoWidth?: number;
+  videoHeight?: number;
 }
 
 export interface CastMember {

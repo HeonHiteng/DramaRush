@@ -34,6 +34,8 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
   const [episodeListVisible, setEpisodeListVisible] = useState(false);
   const [paywallEpisode, setPaywallEpisode] = useState<Episode | null>(null);
   const [adEpisode, setAdEpisode] = useState<Episode | null>(null);
+  /** The active page is showing a landscape video rotated full-screen: no swiping between episodes. */
+  const [landscape, setLandscape] = useState(false);
   const listRef = useRef<FlatList<Episode>>(null);
 
   const isFavorite = useLibraryStore((s) => (series ? s.isFavorite(series.id) : false));
@@ -96,6 +98,7 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
           data={episodes}
           keyExtractor={(item) => item.id}
           pagingEnabled
+          scrollEnabled={!landscape}
           showsVerticalScrollIndicator={false}
           initialScrollIndex={initialIndex}
           getItemLayout={(_, i) => ({ length: containerSize.height, offset: containerSize.height * i, index: i })}
@@ -124,6 +127,7 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
                 onClose={() => goBack(`/series/${series.id}`)}
                 onLocked={() => setPaywallEpisode(item)}
                 onAutoAdvance={() => goToIndex(index + 1)}
+                onLandscapeChange={setLandscape}
               />
             );
           }}

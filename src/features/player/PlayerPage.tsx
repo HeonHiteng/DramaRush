@@ -12,7 +12,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import type { TranslationKey } from '@/i18n/translations';
 import { fetchPlayback, isGrantFresh, type PlaybackErrorCode, type PlaybackGrant } from '@/services/playback';
 import { WatermarkOverlay } from './WatermarkOverlay';
-import { attachHls, needsHlsJs, type HlsAttachment } from './hlsBridge';
+import { attachHls, needsHlsJs, renderedVideoSize, type HlsAttachment } from './hlsBridge';
 
 const SPEED_STEPS = [1, 1.25, 1.5, 2, 0.75];
 const AUTOPLAY_COUNTDOWN_SEC = 5;
@@ -22,6 +22,8 @@ const MAX_SOURCE_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 1500;
 /** Seconds of real playback after which a source counts as working again. */
 const HEALTHY_PLAYBACK_SEC = 3;
+/** Wider than tall by more than this counts as landscape (letterboxed, rotate offered). */
+const LANDSCAPE_MIN_RATIO = 1.05;
 
 const NOTICE_KEYS: Partial<Record<PlaybackErrorCode, TranslationKey>> = {
   unavailable: 'player.videoUnavailable',
@@ -47,6 +49,8 @@ interface PlayerPageProps {
   onClose: () => void;
   onLocked: () => void;
   onAutoAdvance: () => void;
+  /** The active page entered/left the rotated landscape view (the pager stops swiping meanwhile). */
+  onLandscapeChange?: (landscape: boolean) => void;
 }
 
 export function PlayerPage({
@@ -66,6 +70,7 @@ export function PlayerPage({
   onClose,
   onLocked,
   onAutoAdvance,
+  onLandscapeChange,
 }: PlayerPageProps) {
   const setProgress = useLibraryStore((s) => s.setProgress);
   const recordHistory = useLibraryStore((s) => s.recordHistory);
@@ -78,6 +83,10 @@ export function PlayerPage({
   const [speedIndex, setSpeedIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
+  /** Picture size reported by the player once decoding; trusted over the stored size. */
+  const [renderedSize, setRenderedSize] = useState<{ width: number; height: number } | null>(null);
+  /** Landscape videos can be watched rotated 90 degrees to fill the screen (in-app, so the watermark stays). */
+  const [landscapeMode, setLandscapeMode] = useState(false);
   const hasResumedRef = useRef(false);
   const hasRecordedHistoryRef = useRef(false);
   const lockedNotifiedRef = useRef(false);
@@ -100,9 +109,11 @@ export function PlayerPage({
   const retryAfterErrorRef = useRef<() => void>(() => {});
   const isActiveRef = useRef(isActive);
   const onLockedRef = useRef(onLocked);
+  const onLandscapeChangeRef = useRef(onLandscapeChange);
   useEffect(() => {
     isActiveRef.current = isActive;
     onLockedRef.current = onLocked;
+    onLandscapeChangeRef.current = onLandscapeChange;
   });
 
   const player = useVideoPlayer(null, (p) => {
@@ -255,10 +266,23 @@ export function PlayerPage({
       sourceRetriesRef.current = 0;
       healthAnchorRef.current = null;
     }
+    if (!renderedSize && currentTime > 0) {
+      const size = renderedVideoSize(player);
+      if (size) setRenderedSize(size);
+    }
     if (currentTime > 0 && duration > 0) {
       setProgress(episode.id, currentTime, duration);
     }
-  }, [currentTime, duration, isActive, isUnlocked, episode.id, setProgress]);
+  }, [currentTime, duration, isActive, isUnlocked, episode.id, setProgress, renderedSize, player]);
+
+  // Leaving the page, or losing access, ends the rotated view.
+  useEffect(() => {
+    if (!isActive || !isUnlocked) setLandscapeMode(false);
+  }, [isActive, isUnlocked]);
+
+  useEffect(() => {
+    if (isActive) onLandscapeChangeRef.current?.(landscapeMode);
+  }, [landscapeMode, isActive]);
 
   useEffect(() => {
     if (nextCountdown === null) {
@@ -311,16 +335,61 @@ export function PlayerPage({
     if (duration > 0) player.currentTime = ratio * duration;
   };
 
+  const pictureSize =
+    renderedSize ?? (episode.videoWidth && episode.videoHeight ? { width: episode.videoWidth, height: episode.videoHeight } : null);
+  const isLandscape = !!pictureSize && pictureSize.width > pictureSize.height * LANDSCAPE_MIN_RATIO;
+  // Rotated 90 degrees: a box as wide as the page is tall, centred, so it fills the screen sideways.
+  const frameStyle = landscapeMode
+    ? {
+        position: 'absolute' as const,
+        width: height,
+        height: width,
+        left: (width - height) / 2,
+        top: (height - width) / 2,
+        transform: [{ rotate: '90deg' }],
+      }
+    : StyleSheet.absoluteFill;
+  // Just under the letterboxed picture.
+  const pictureHeight = pictureSize ? Math.min(height, (width * pictureSize.height) / pictureSize.width) : 0;
+  const landscapeButtonTop = Math.min(height - 120, height / 2 + pictureHeight / 2 + 14);
+
   return (
     <View style={{ width, height, backgroundColor: colors.black }}>
       {isUnlocked ? (
-        <VideoView
-          style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
-          player={player}
-          contentFit="cover"
-          nativeControls={false}
-          allowsPictureInPicture={false}
-        />
+        <View style={frameStyle}>
+          <VideoView
+            style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
+            player={player}
+            contentFit={isLandscape ? 'contain' : 'cover'}
+            nativeControls={false}
+            allowsPictureInPicture={false}
+          />
+          {grant && <WatermarkOverlay code={grant.watermarkCode} />}
+          {landscapeMode && (
+            <>
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={togglePlay}
+                accessibilityRole="button"
+                accessibilityLabel={isPlaying ? t('player.pauseVideo') : t('player.playVideo')}
+              />
+              {!isPlaying && (
+                <View style={[StyleSheet.absoluteFill, styles.centered, { pointerEvents: 'none' }]}>
+                  <Ionicons name="play" size={44} color="rgba(255,255,255,0.85)" />
+                </View>
+              )}
+              <Pressable
+                style={styles.exitLandscape}
+                onPress={() => setLandscapeMode(false)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('player.exitLandscape')}
+              >
+                <Ionicons name="contract-outline" size={20} color={colors.white} />
+              </Pressable>
+            </>
+          )}
+        </View>
       ) : (
         <LockedPoster episodeNumber={episode.number} episodeTitle={episode.title} lockedTitle={t('player.lockedTitle', { number: episode.number })} />
       )}
@@ -332,22 +401,22 @@ export function PlayerPage({
         </View>
       )}
 
-      {isUnlocked && grant && <WatermarkOverlay code={grant.watermarkCode} />}
+      {!landscapeMode && (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => setControlsVisible((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel={isPlaying ? t('player.pauseVideo') : t('player.playVideo')}
+        />
+      )}
 
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={() => setControlsVisible((v) => !v)}
-        accessibilityRole="button"
-        accessibilityLabel={isPlaying ? t('player.pauseVideo') : t('player.playVideo')}
-      />
-
-      {isUnlocked && subtitlesEnabled && (
+      {isUnlocked && !landscapeMode && subtitlesEnabled && (
         <View style={[styles.subtitleWrap, { bottom: height * 0.18, pointerEvents: 'none' }]}>
           <Text style={styles.subtitleText}>{t('player.subtitlePlaceholder')}</Text>
         </View>
       )}
 
-      {isUnlocked && (
+      {isUnlocked && !landscapeMode && (
         <VideoControls
           visible={controlsVisible}
           seriesTitle={seriesTitle}
@@ -374,6 +443,18 @@ export function PlayerPage({
           onSeek={handleSeek}
           onCancelCountdown={() => setNextCountdown(null)}
         />
+      )}
+
+      {isUnlocked && isLandscape && !landscapeMode && grant && !playbackError && (
+        <Pressable
+          style={[styles.landscapeButton, { top: landscapeButtonTop }]}
+          onPress={() => setLandscapeMode(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('player.watchLandscape')}
+        >
+          <Ionicons name="phone-landscape-outline" size={16} color={colors.white} />
+          <Text style={styles.landscapeButtonText}>{t('player.watchLandscape')}</Text>
+        </Pressable>
       )}
     </View>
   );
@@ -408,6 +489,32 @@ const styles = StyleSheet.create({
   lockedSubtitle: { ...typography.body, color: colors.textTertiary, textAlign: 'center' },
   subtitleWrap: { position: 'absolute', left: 24, right: 24, alignItems: 'center' },
   noticeWrap: { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
+  centered: { alignItems: 'center', justifyContent: 'center' },
+  landscapeButton: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  landscapeButtonText: { ...typography.caption, color: colors.white, fontWeight: '600' },
+  exitLandscape: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
   noticeText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
   subtitleText: {
     ...typography.bodyMedium,
