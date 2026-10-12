@@ -17,8 +17,9 @@ change** — only data, playback and security logic, and bug fixes.
 
 ## How the app talks to the backend
 
-- `src/lib/supabase.ts` — the client. `supabaseConfigError` is checked in `app/_layout.tsx` (a
-  module-level throw can't be caught by an error boundary).
+- `src/lib/supabase.ts` — the client. The backend URL + public anon key are hard-wired in
+  `src/config/backend.ts` on purpose: one database for every build, no `.env` (a stale `.env` used
+  to point builds at the old prototype project, which is retired).
 - Coins, unlocks, memberships, daily mission and resets are **server-side RPCs**
   (`unlock_episode_with_coins`, `redeem_ad_reward`, `simulate_purchase`, `simulate_subscribe`,
   `cancel_subscription`, `reset_my_data`, …). Clients can only read those tables. Payments are

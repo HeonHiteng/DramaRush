@@ -15,8 +15,8 @@ export function StartupErrorScreen({ message }: { message: string }) {
         <Text style={styles.message}>{message}</Text>
         <View style={styles.hintBox}>
           <Text style={styles.hintText}>
-            This usually means the Supabase backend isn&apos;t configured yet. See the app repo&apos;s
-            README (Setup) and the DramaRush-Backend repo for the one-time steps.
+            Close and reopen the app. If it keeps happening, check your connection or contact
+            support.
           </Text>
         </View>
       </ScrollView>
