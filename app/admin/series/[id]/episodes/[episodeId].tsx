@@ -43,13 +43,9 @@ export default function EditEpisodeScreen() {
         submitLabel="Save Changes"
         onSubmit={async (input) => {
           setError(null);
-          try {
-            await updateEpisode.mutateAsync(input);
-            goBack(`/admin/series/${seriesId}`);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to save episode.');
-          }
+          await updateEpisode.mutateAsync(input);
         }}
+        onDone={() => goBack(`/admin/series/${seriesId}`)}
       />
     </Screen>
   );

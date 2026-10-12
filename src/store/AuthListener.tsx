@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { clearPlaybackCache } from '@/services/playback';
 import { DEFAULT_GUEST_NAME, DEFAULT_MEMBER_NAME } from '@/config';
 import { useUserStore } from './userStore';
 import { useLibraryStore } from './libraryStore';
@@ -47,6 +48,8 @@ export function AuthListener() {
     let isMounted = true;
 
     async function handleSession(session: Session | null) {
+      // Signed playback URLs were issued for the previous user's entitlements.
+      clearPlaybackCache();
       if (session) {
         const user = await loadMockUser(session);
         if (!isMounted) return;

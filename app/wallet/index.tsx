@@ -49,14 +49,16 @@ export default function WalletScreen() {
     setModalState('confirm');
   };
 
-  const confirmPurchase = () => {
+  const confirmPurchase = async () => {
     if (!selectedPackage) return;
     setModalState('processing');
-    setTimeout(() => {
-      purchasePackage(selectedPackage);
+    const ok = await purchasePackage(selectedPackage);
+    if (ok) {
       setModalState('success');
       successHaptic();
-    }, 1100);
+    } else {
+      setSelectedPackage(null);
+    }
   };
 
   const closeModal = () => setSelectedPackage(null);

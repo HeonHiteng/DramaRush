@@ -6,6 +6,7 @@ import { LockBadge } from '@/components/ui/LockBadge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import type { Episode } from '@/types';
 import { formatEpisodeDuration } from '@/utils/format';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
 
 interface EpisodeRowProps {
   episode: Episode;
@@ -15,7 +16,9 @@ interface EpisodeRowProps {
 }
 
 export function EpisodeRow({ episode, isUnlocked, progress, onPress }: EpisodeRowProps) {
-  const isLocked = episode.access !== 'free' && !isUnlocked;
+  // Members can watch subscriber episodes without an unlock (same rule as the server's can_watch).
+  const isSubscriber = useSubscriptionStore((s) => s.isActive);
+  const isLocked = episode.access !== 'free' && !isUnlocked && !(episode.access === 'subscriber' && isSubscriber);
 
   return (
     <Pressable

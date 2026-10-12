@@ -122,7 +122,7 @@ function MembershipBanner() {
     <Pressable
       onPress={() => router.push('/subscription')}
       accessibilityRole="button"
-      accessibilityLabel="View DramaRush membership plans"
+      accessibilityLabel={`View ${BRAND.name} membership plans`}
       style={styles.bannerWrap}
     >
       <LinearGradient

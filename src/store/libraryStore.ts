@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
+import { useWalletStore } from './walletStore';
 
 export interface EpisodeProgress {
   positionSec: number;
@@ -30,10 +31,10 @@ interface LibraryState {
   unlockEpisodeWithCoins: (episodeId: string) => Promise<boolean>;
   /** Calls the redeem_ad_reward() RPC after the rewarded-ad simulation completes. */
   redeemAdReward: (episodeId: string) => Promise<boolean>;
-  /** Demo Controls only — bulk-locks by deleting unlock rows, no coin refund. */
-  lockAllPremium: (premiumEpisodeIds: string[]) => Promise<void>;
-  /** Demo Controls only — bulk-unlocks for free, bypassing coins entirely. */
-  unlockAll: (allEpisodeIds: string[]) => Promise<void>;
+  /** Demo Controls only (admin accounts) — removes every unlock, no coin refund. */
+  lockAllPremium: () => Promise<void>;
+  /** Demo Controls only (admin accounts) — unlocks every paid episode for free. */
+  unlockAll: () => Promise<void>;
 
   setProgress: (episodeId: string, positionSec: number, durationSec: number) => void;
   getProgress: (episodeId: string) => EpisodeProgress | undefined;
@@ -44,7 +45,6 @@ interface LibraryState {
 
   hydrateFromServer: () => Promise<void>;
   resetLocal: () => void;
-  resetServerData: () => Promise<void>;
 }
 
 const EMPTY_STATE = {
@@ -111,6 +111,8 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
           ? state
           : { unlockedEpisodeIds: [...state.unlockedEpisodeIds, episodeId] }
       );
+      // Coins were deducted on the server; pull the new balance + transaction.
+      await useWalletStore.getState().hydrateFromServer();
     }
     return Boolean(data);
   },
@@ -131,26 +133,24 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
     return Boolean(data);
   },
 
-  lockAllPremium: async (premiumEpisodeIds) => {
-    const userId = await currentUserId();
-    set((state) => ({
-      unlockedEpisodeIds: state.unlockedEpisodeIds.filter((id) => !premiumEpisodeIds.includes(id)),
-    }));
-    if (userId) {
-      await supabase.from('unlocks').delete().eq('user_id', userId).in('episode_id', premiumEpisodeIds);
+  lockAllPremium: async () => {
+    const { error } = await supabase.rpc('demo_set_all_unlocked', { p_unlocked: false });
+    if (error) {
+      console.warn('lockAllPremium failed (admin accounts only)', error);
+      return;
     }
+    set({ unlockedEpisodeIds: [] });
   },
-  unlockAll: async (allEpisodeIds) => {
-    const userId = await currentUserId();
-    set({ unlockedEpisodeIds: [...allEpisodeIds] });
-    if (userId) {
-      await supabase
-        .from('unlocks')
-        .upsert(
-          allEpisodeIds.map((episodeId) => ({ user_id: userId, episode_id: episodeId })),
-          { onConflict: 'user_id,episode_id', ignoreDuplicates: true }
-        );
+  unlockAll: async () => {
+    const { error } = await supabase.rpc('demo_set_all_unlocked', { p_unlocked: true });
+    if (error) {
+      console.warn('unlockAll failed (admin accounts only)', error);
+      return;
     }
+    const userId = await currentUserId();
+    if (!userId) return;
+    const { data } = await supabase.from('unlocks').select('episode_id').eq('user_id', userId);
+    set({ unlockedEpisodeIds: (data ?? []).map((r) => r.episode_id) });
   },
 
   setProgress: (episodeId, positionSec, durationSec) => {
@@ -249,16 +249,4 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
   },
 
   resetLocal: () => set({ ...EMPTY_STATE, isHydrated: false }),
-
-  resetServerData: async () => {
-    const userId = await currentUserId();
-    set({ ...EMPTY_STATE });
-    if (!userId) return;
-    await Promise.all([
-      supabase.from('favorites').delete().eq('user_id', userId),
-      supabase.from('unlocks').delete().eq('user_id', userId),
-      supabase.from('watch_history').delete().eq('user_id', userId),
-      supabase.from('progress').delete().eq('user_id', userId),
-    ]);
-  },
 }));

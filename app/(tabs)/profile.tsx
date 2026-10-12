@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,24 +18,19 @@ import {
   useLibraryStore,
   resetPrototype,
 } from '@/store';
-import { useEpisodes } from '@/services/content';
 import { useTranslation } from '@/i18n/useTranslation';
 
 export default function ProfileScreen() {
   const user = useUserStore((s) => s.user);
   const signOut = useUserStore((s) => s.signOut);
   const balance = useWalletStore((s) => s.balance);
-  const addCoins = useWalletStore((s) => s.addCoins);
+  const demoAddCoins = useWalletStore((s) => s.demoAddCoins);
   const setBalance = useWalletStore((s) => s.setBalance);
   const subscription = useSubscriptionStore();
   const clearHistory = useLibraryStore((s) => s.clearHistory);
   const lockAllPremium = useLibraryStore((s) => s.lockAllPremium);
   const unlockAll = useLibraryStore((s) => s.unlockAll);
-  const { data: allEpisodes = [] } = useEpisodes();
   const { t } = useTranslation();
-
-  const premiumEpisodeIds = useMemo(() => allEpisodes.filter((e) => e.access !== 'free').map((e) => e.id), [allEpisodes]);
-  const allEpisodeIds = useMemo(() => allEpisodes.map((e) => e.id), [allEpisodes]);
 
   const [demoExpanded, setDemoExpanded] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -192,12 +187,12 @@ export default function ProfileScreen() {
 
             {demoExpanded && (
               <View style={styles.demoGrid}>
-                <DemoButton label="+500 Coins" onPress={() => addCoins(500, 'Demo: added coins', 'bonus')} />
+                <DemoButton label="+500 Coins" onPress={() => demoAddCoins(500)} />
                 <DemoButton label="Remove All Coins" onPress={() => setBalance(0)} />
                 <DemoButton label="Activate Membership" onPress={() => subscription.activate('monthly')} />
                 <DemoButton label="Cancel Membership" onPress={() => subscription.cancel()} />
-                <DemoButton label="Lock All Premium" onPress={() => lockAllPremium(premiumEpisodeIds)} />
-                <DemoButton label="Unlock All Episodes" onPress={() => unlockAll(allEpisodeIds)} />
+                <DemoButton label="Lock All Premium" onPress={() => lockAllPremium()} />
+                <DemoButton label="Unlock All Episodes" onPress={() => unlockAll()} />
                 <DemoButton label="Clear Viewing History" onPress={clearHistory} />
                 <DemoButton label="Reset Entire Prototype" onPress={() => setConfirmVisible(true)} destructive />
               </View>

@@ -94,7 +94,7 @@ export default function EditSeriesScreen() {
                 </Text>
                 <Text style={styles.episodeMeta}>
                   {Math.round(ep.durationSec / 60)} min ·{' '}
-                  {ep.access === 'coin' ? `${ep.coinPrice} coins` : ep.access.replace('_', ' ')}
+                  {ep.access === 'coin' ? `${ep.coinPrice} coins` : ep.access.replace('_', ' ')}{ep.published ? '' : ' · draft'}
                 </Text>
               </Pressable>
               <Pressable onPress={() => setEpisodeToDelete(ep)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Delete episode ${ep.number}`}>

@@ -9,18 +9,17 @@ interface WalletState {
   isHydrated: boolean;
   dailyMissionClaimedToday: boolean;
 
-  /** Bonus/manual coin grants (Demo Controls, subscription bonus). Writes through to Supabase. */
-  addCoins: (amount: number, label: string, type?: TransactionType) => Promise<void>;
   /**
-   * Still-simulated purchase trigger (no real payment processor yet — see
-   * DramaRush-Backend README "Non-goals") — but the resulting balance and
-   * transaction are real, persisted rows.
+   * Still-simulated purchase (no real payment processor yet). The server's
+   * simulate_purchase() RPC decides how many coins the package grants and
+   * writes the transaction; the app only names the package. Returns false if
+   * the server refused (e.g. simulated payments switched off).
    */
-  purchasePackage: (pkg: CoinPackage) => Promise<void>;
-  /** Demo Controls "Remove All Coins". */
+  purchasePackage: (pkg: CoinPackage) => Promise<boolean>;
+  /** Demo Controls "+N coins" — admin accounts only (demo_set_balance RPC). */
+  demoAddCoins: (amount: number) => Promise<void>;
+  /** Demo Controls "Remove All Coins" — admin accounts only. */
   setBalance: (amount: number) => Promise<void>;
-  /** Reset Prototype. */
-  resetWallet: () => Promise<void>;
   /**
    * Calls the claim_daily_mission() RPC after the rewarded-ad simulation
    * completes. Returns the coins awarded, or 0 if already claimed today —
@@ -28,6 +27,7 @@ interface WalletState {
    */
   claimDailyMission: () => Promise<number>;
 
+  /** Re-reads balance, transactions and today's mission state from the server. */
   hydrateFromServer: () => Promise<void>;
   resetLocal: () => void;
 }
@@ -53,55 +53,28 @@ export const useWalletStore = create<WalletState>()((set, get) => ({
   isHydrated: false,
   dailyMissionClaimedToday: false,
 
-  addCoins: async (amount, label, type = 'bonus') => {
-    const userId = await currentUserId();
-    if (!userId) return;
-    const newBalance = get().balance + amount;
-    const { data: txn, error: txnError } = await supabase
-      .from('transactions')
-      .insert({ user_id: userId, type, label, amount })
-      .select()
-      .single();
-    if (txnError) {
-      console.warn('addCoins transaction insert failed', txnError);
-      return;
+  purchasePackage: async (pkg) => {
+    const { data, error } = await supabase.rpc('simulate_purchase', { p_package_id: pkg.id });
+    if (error) {
+      console.warn('purchasePackage failed', error);
+      return false;
     }
-    const { error: balanceError } = await supabase
-      .from('wallets')
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq('user_id', userId);
-    if (balanceError) {
-      console.warn('addCoins balance update failed', balanceError);
-      return;
-    }
-    set((state) => ({ balance: newBalance, transactions: [toTransaction(txn), ...state.transactions] }));
+    set({ balance: data as number });
+    await get().hydrateFromServer();
+    return true;
   },
 
-  purchasePackage: async (pkg) => {
-    const total = pkg.coins + pkg.bonusCoins;
-    await get().addCoins(total, `Purchased ${pkg.coins} coins (${pkg.priceLabel})`, 'purchase');
+  demoAddCoins: async (amount) => {
+    await get().setBalance(get().balance + amount);
   },
 
   setBalance: async (amount) => {
-    const userId = await currentUserId();
-    set({ balance: amount });
-    if (userId) {
-      await supabase.from('wallets').update({ balance: amount, updated_at: new Date().toISOString() }).eq('user_id', userId);
+    const { error } = await supabase.rpc('demo_set_balance', { p_balance: amount });
+    if (error) {
+      console.warn('setBalance failed (admin accounts only)', error);
+      return;
     }
-  },
-
-  resetWallet: async () => {
-    const userId = await currentUserId();
-    set({ balance: STARTING_COIN_BALANCE, transactions: [], dailyMissionClaimedToday: false });
-    if (!userId) return;
-    await Promise.all([
-      supabase
-        .from('wallets')
-        .update({ balance: STARTING_COIN_BALANCE, updated_at: new Date().toISOString() })
-        .eq('user_id', userId),
-      supabase.from('transactions').delete().eq('user_id', userId),
-      supabase.from('daily_mission_claims').delete().eq('user_id', userId),
-    ]);
+    await get().hydrateFromServer();
   },
 
   claimDailyMission: async () => {
@@ -110,20 +83,10 @@ export const useWalletStore = create<WalletState>()((set, get) => ({
       console.warn('claimDailyMission failed', error);
       return 0;
     }
-    const awarded = data ?? 0;
+    const awarded = (data as number | null) ?? 0;
     if (awarded > 0) {
-      const txn: Transaction = {
-        id: `daily-mission-${Date.now()}`,
-        type: 'reward',
-        label: 'Daily mission: watched a rewarded ad',
-        amount: awarded,
-        timestamp: new Date().toISOString(),
-      };
-      set((state) => ({
-        balance: state.balance + awarded,
-        dailyMissionClaimedToday: true,
-        transactions: [txn, ...state.transactions],
-      }));
+      set({ dailyMissionClaimedToday: true });
+      await get().hydrateFromServer();
     }
     return awarded;
   },
@@ -145,7 +108,7 @@ export const useWalletStore = create<WalletState>()((set, get) => ({
         .maybeSingle(),
     ]);
     set({
-      balance: walletRes.data?.balance ?? STARTING_COIN_BALANCE,
+      balance: walletRes.data?.balance ?? get().balance,
       transactions: (txnRes.data ?? []).map(toTransaction),
       dailyMissionClaimedToday: !!missionRes.data,
       isHydrated: true,

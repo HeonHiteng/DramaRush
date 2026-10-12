@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "dramarush-web",
-      "runtimeExecutable": "cmd.exe",
-      "runtimeArgs": ["/c", "C:\\Users\\kelvi\\Claude Code\\Login Testing\\.tools\\start-web.cmd"],
+      "name": "keybox-web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--web", "--port", "8081"],
       "port": 8081
     }
   ]

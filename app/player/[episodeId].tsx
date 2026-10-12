@@ -11,6 +11,7 @@ import { EpisodeListSheet } from '@/features/player/EpisodeListSheet';
 import { useEpisodeById, useEpisodesForSeries, useSeriesById } from '@/services/content';
 import { useLibraryStore, useSubscriptionStore, useWalletStore } from '@/store';
 import { goBack } from '@/utils/navigation';
+import { usePlaybackProtection } from '@/hooks/usePlaybackProtection';
 import { useTranslation } from '@/i18n/useTranslation';
 import { BRAND } from '@/config';
 import type { Episode } from '@/types';
@@ -21,6 +22,8 @@ export default function PlayerScreen() {
 }
 
 function PlayerScreenInner({ episodeId }: { episodeId: string }) {
+  // No screenshots / screen recordings while the player is open (native only).
+  usePlaybackProtection();
   const { data: initialEpisode, isLoading: episodeLoading } = useEpisodeById(episodeId);
   const { data: series, isLoading: seriesLoading } = useSeriesById(initialEpisode?.seriesId);
   const { data: episodes = [], isLoading: episodesLoading } = useEpisodesForSeries(initialEpisode?.seriesId);
