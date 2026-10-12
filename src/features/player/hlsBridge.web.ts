@@ -5,8 +5,8 @@ import Hls from 'hls.js';
 import type { VideoPlayer } from 'expo-video';
 
 /**
- * hls.js fallback for browsers without native HLS (Firefox, older Chrome).
- * Safari and Chrome 142+ play the signed .m3u8 natively and never use it.
+ * hls.js for every web browser except Apple's (see needsHlsJs): Chrome,
+ * Android Chrome, Edge, Firefox. Safari / iOS play the signed .m3u8 natively.
  *
  * Instead of giving expo-video the .m3u8 (which those browsers can't play),
  * hls.js is attached to the <video> element(s) expo-video has mounted for the
@@ -39,12 +39,27 @@ function forcedInDev(): boolean {
 }
 const FORCED = forcedInDev();
 
+/**
+ * Apple's own HLS player (Safari, and every browser on iOS) is the reference
+ * implementation — use it there. Elsewhere use hls.js whenever it can run:
+ * Chrome's built-in HLS (Android in particular) reports support but fails on
+ * Cloudflare Stream's fMP4 renditions with a separate audio group, loading
+ * the manifest and then erroring.
+ */
+function isApplePlayer(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  const iOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const desktopSafari = /Safari\//.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|Edg|OPR|Android/.test(ua);
+  return iOS || desktopSafari;
+}
+
 export function needsHlsJs(): boolean {
   if (supportDecision !== null) return supportDecision;
-  const forced = FORCED;
   const nativeHls =
     typeof document !== 'undefined' && document.createElement('video').canPlayType('application/vnd.apple.mpegurl') !== '';
-  supportDecision = Hls.isSupported() && (forced || !nativeHls);
+  const preferNative = nativeHls && isApplePlayer() && !FORCED;
+  supportDecision = Hls.isSupported() && !preferNative;
   return supportDecision;
 }
 
