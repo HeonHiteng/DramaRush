@@ -221,6 +221,8 @@ export const translations = {
     'player.videoUnavailable': 'This episode is coming soon',
     'player.tryAgainLater': 'Playback is busy right now. Please try again in a moment.',
     'player.loadFailed': "Couldn't load this episode. Check your connection and try again.",
+    'player.watchLandscape': 'Watch in landscape',
+    'player.exitLandscape': 'Exit landscape',
     'player.shareMessage': 'Check out "{title}" on {brand} (simulated share).',
 
     // Paywall
@@ -471,6 +473,8 @@ export const translations = {
     'player.videoUnavailable': '本集即将上线',
     'player.tryAgainLater': '当前播放繁忙，请稍后再试。',
     'player.loadFailed': '无法加载本集，请检查网络后重试。',
+    'player.watchLandscape': '横屏观看',
+    'player.exitLandscape': '退出横屏',
     'player.shareMessage': '在 {brand} 上查看"{title}"（模拟分享）。',
 
     'paywall.membersOnlyTitle': '会员专属剧集',
@@ -715,6 +719,8 @@ export const translations = {
     'player.videoUnavailable': 'Episod ini akan datang tidak lama lagi',
     'player.tryAgainLater': 'Main balik sibuk sekarang. Sila cuba sebentar lagi.',
     'player.loadFailed': 'Episod ini gagal dimuatkan. Semak sambungan anda dan cuba lagi.',
+    'player.watchLandscape': 'Tonton landskap',
+    'player.exitLandscape': 'Keluar landskap',
     'player.shareMessage': 'Lihat "{title}" di {brand} (kongsi simulasi).',
 
     'paywall.membersOnlyTitle': 'Episod khas ahli',

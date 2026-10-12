@@ -72,6 +72,12 @@ function mountedVideos(player: VideoPlayer): HTMLVideoElement[] {
   return set ? [...set] : [];
 }
 
+/** Size of the picture actually being decoded, once known (overrides the stored size). */
+export function renderedVideoSize(player: VideoPlayer): { width: number; height: number } | null {
+  const video = mountedVideos(player).find((v) => v.videoWidth > 0 && v.videoHeight > 0);
+  return video ? { width: video.videoWidth, height: video.videoHeight } : null;
+}
+
 export async function attachHls(player: VideoPlayer, url: string, onFatalError: () => void): Promise<HlsAttachment> {
   // The VideoView may mount a moment after the source is ready.
   let videos = mountedVideos(player);
