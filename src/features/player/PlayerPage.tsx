@@ -18,6 +18,10 @@ const SPEED_STEPS = [1, 1.25, 1.5, 2, 0.75];
 const AUTOPLAY_COUNTDOWN_SEC = 5;
 /** Automatic re-fetches of a fresh signed URL after a playback error, before giving up. */
 const MAX_SOURCE_RETRIES = 2;
+/** First automatic retry waits this long; each further one doubles it. */
+const RETRY_BASE_DELAY_MS = 1500;
+/** Seconds of real playback after which a source counts as working again. */
+const HEALTHY_PLAYBACK_SEC = 3;
 
 const NOTICE_KEYS: Partial<Record<PlaybackErrorCode, TranslationKey>> = {
   unavailable: 'player.videoUnavailable',
@@ -88,6 +92,8 @@ export function PlayerPage({
   /** Set when a new source is loading: seek target (or null), cleared (undefined) once ready. */
   const pendingSeekRef = useRef<number | null | undefined>(undefined);
   const sourceRetriesRef = useRef(0);
+  /** Position when the current source became ready; cleared once it has played a few seconds. */
+  const healthAnchorRef = useRef<number | null>(null);
   const lastPositionRef = useRef(0);
   /** hls.js instance on web browsers without native HLS (see hlsBridge.web.ts). */
   const hlsRef = useRef<HlsAttachment | null>(null);
@@ -144,12 +150,21 @@ export function PlayerPage({
     [episode.id, player]
   );
 
-  /** Most often an expired token (paused > 15 min): get a new URL and continue where we were. */
+  /**
+   * Most often an expired token (paused > 15 min): get a new URL and continue
+   * where we were. Backs off between attempts, and the attempt count only
+   * resets after real playback (see the progress effect) — a source that loads
+   * but can't play must not turn into a request loop (it would also trip the
+   * server's rate limit and block the account).
+   */
   const retryAfterError = useCallback(() => {
     if (!isUnlocked) return;
     if (sourceRetriesRef.current < MAX_SOURCE_RETRIES) {
       sourceRetriesRef.current += 1;
-      loadSource(lastPositionRef.current || null, true);
+      const delayMs = RETRY_BASE_DELAY_MS * 2 ** (sourceRetriesRef.current - 1);
+      setTimeout(() => {
+        if (isActiveRef.current) loadSource(lastPositionRef.current || null, true);
+      }, delayMs);
     } else {
       setPlaybackError('network_error');
     }
@@ -163,8 +178,8 @@ export function PlayerPage({
 
   useEventListener(player, 'statusChange', ({ status: next }) => {
     if (next === 'readyToPlay') {
-      sourceRetriesRef.current = 0;
       const justLoaded = pendingSeekRef.current !== undefined;
+      if (justLoaded) healthAnchorRef.current = pendingSeekRef.current ?? 0;
       if (pendingSeekRef.current !== null && pendingSeekRef.current !== undefined) {
         player.currentTime = pendingSeekRef.current;
       }
@@ -235,6 +250,11 @@ export function PlayerPage({
   useEffect(() => {
     if (!isActive || !isUnlocked) return;
     if (currentTime > 0) lastPositionRef.current = currentTime;
+    const anchor = healthAnchorRef.current;
+    if (anchor !== null && currentTime >= anchor + HEALTHY_PLAYBACK_SEC) {
+      sourceRetriesRef.current = 0;
+      healthAnchorRef.current = null;
+    }
     if (currentTime > 0 && duration > 0) {
       setProgress(episode.id, currentTime, duration);
     }
