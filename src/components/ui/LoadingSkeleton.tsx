@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { colors, radius } from '@/theme';
+import { colors, radius, spacing } from '@/theme';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 interface SkeletonBlockProps {
@@ -57,12 +57,14 @@ export function PosterRailSkeleton({ count = 4 }: { count?: number }) {
   );
 }
 
-export function GridSkeleton({ count = 6 }: { count?: number }) {
+/** Placeholder for a poster grid — pass the real grid's card width so the
+ * skeleton occupies exactly the layout the loaded grid will. */
+export function GridSkeleton({ count = 6, itemWidth }: { count?: number; itemWidth: number }) {
   return (
     <View style={styles.grid}>
       {Array.from({ length: count }).map((_, i) => (
-        <View key={i} style={styles.gridItem}>
-          <SkeletonBlock height={180} borderRadius={radius.lg} />
+        <View key={i} style={{ width: itemWidth }}>
+          <SkeletonBlock height={Math.round(itemWidth * 1.5)} borderRadius={radius.lg} />
           <SkeletonBlock width="70%" height={12} style={styles.marginTop} />
         </View>
       ))}
@@ -74,6 +76,5 @@ const styles = StyleSheet.create({
   rail: { flexDirection: 'row', gap: 12, paddingHorizontal: 16 },
   posterItem: { width: 124 },
   marginTop: { marginTop: 8 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 16 },
-  gridItem: { width: '47%' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.sm, rowGap: spacing.md, paddingHorizontal: spacing.lg },
 });

@@ -7,7 +7,16 @@ import { colors } from '@/theme';
 // the same number — it's the one place that actually decides the frame size.
 export const FRAME_WIDTH = 430;
 const FRAME_HEIGHT = 932;
+const FRAME_BORDER = 10;
 const BREAKPOINT = 640;
+
+/** The width screens actually get to lay out in: the phone frame's inner
+ * width on wide web viewports, the window width everywhere else. Use this
+ * instead of the raw window width when sizing content to fit the screen. */
+export function useAppWidth() {
+  const { width } = useWindowDimensions();
+  return Platform.OS === 'web' && width >= BREAKPOINT ? FRAME_WIDTH - FRAME_BORDER * 2 : width;
+}
 
 /**
  * On wide web viewports, centers the app inside a phone-sized frame instead
@@ -48,7 +57,7 @@ const styles = StyleSheet.create({
   frame: {
     backgroundColor: colors.bg,
     borderRadius: 44,
-    borderWidth: 10,
+    borderWidth: FRAME_BORDER,
     borderColor: '#1C1A1F',
     overflow: 'hidden',
     boxShadow: '0 40px 120px rgba(0,0,0,0.65)',

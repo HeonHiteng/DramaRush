@@ -72,7 +72,7 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <HeroCarousel series={getHeroSeries(series)} />
+        <HeroCarousel series={getHeroSeries(series)} episodes={episodes} />
 
         {continueWatching.length > 0 && (
           <View style={styles.section}>
@@ -98,7 +98,7 @@ export default function HomeScreen() {
 
         <MembershipBanner />
 
-        <SeriesRail title={t('home.trendingNow')} series={getTrendingNow(series)} />
+        <SeriesRail title={t('home.trendingNow')} series={getTrendingNow(series)} ranked />
         <SeriesRail title={t('home.newReleases')} series={getNewReleases(series)} />
         <SeriesRail title={t('home.recommendedForYou')} series={getRecommendedForYou(series)} />
         <SeriesRail title={t('home.freeToWatch')} series={getFreeToWatch(series, episodes)} />

@@ -10,12 +10,15 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors, gradients, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { PosterArt } from './PosterArt';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { Series } from '@/types';
+import { useLibraryStore } from '@/store';
+import { getNextEpisode } from '@/utils/nextEpisode';
+import type { Episode, Series } from '@/types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = Math.min(SCREEN_WIDTH, 480) - spacing.lg * 2;
@@ -23,11 +26,17 @@ const CARD_HEIGHT = 400;
 
 interface HeroCarouselProps {
   series: Series[];
+  /** Used to resolve each series' next episode to play — the same
+   * "first incomplete episode, else episode 1" rule as the series detail
+   * page — so "Watch Now" here starts playback immediately instead of
+   * just opening the series page (that's what "More Info" is for). */
+  episodes: Episode[];
 }
 
-export function HeroCarousel({ series }: HeroCarouselProps) {
+export function HeroCarousel({ series, episodes }: HeroCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<FlatList<Series>>(null);
+  const progress = useLibraryStore((s) => s.progress);
   const { t } = useTranslation();
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -79,11 +88,24 @@ export function HeroCarousel({ series }: HeroCarouselProps) {
                 <Text style={styles.synopsis} numberOfLines={2}>
                   {item.synopsis}
                 </Text>
-                <AppButton
-                  label={t('common.watchNow')}
-                  onPress={() => router.push(`/series/${item.id}`)}
-                  style={styles.cta}
-                />
+                <View style={styles.ctaRow}>
+                  <AppButton
+                    label={t('common.watchNow')}
+                    onPress={() => {
+                      const nextEpisode = getNextEpisode(episodes, item.id, progress);
+                      router.push(nextEpisode ? `/player/${nextEpisode.id}` : `/series/${item.id}`);
+                    }}
+                    icon={<Ionicons name="play" size={16} color={colors.textInverse} />}
+                    style={styles.cta}
+                  />
+                  <AppButton
+                    label={t('common.moreInfo')}
+                    onPress={() => router.push(`/series/${item.id}`)}
+                    variant="secondary"
+                    icon={<Ionicons name="information-circle-outline" size={18} color={colors.textPrimary} />}
+                    style={styles.cta}
+                  />
+                </View>
               </View>
             </LinearGradient>
           </View>
@@ -120,7 +142,11 @@ const styles = StyleSheet.create({
   textBlock: { gap: spacing.xs },
   title: { ...typography.display, color: colors.textPrimary },
   synopsis: { ...typography.body, color: colors.textSecondary },
-  cta: { marginTop: spacing.sm, alignSelf: 'flex-start', paddingHorizontal: spacing.xl },
+  // flexWrap so "More Info" drops to its own line on narrow screens instead
+  // of being squeezed to zero width (its label vanished entirely at 320px
+  // before this — RN doesn't ellipsize a Pressable's content, it just clips).
+  ctaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
+  cta: { paddingHorizontal: spacing.lg },
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',

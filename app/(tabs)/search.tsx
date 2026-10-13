@@ -1,22 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BRAND } from '@/config';
-import { FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BRAND } from '@/config';
 import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { GenreChip } from '@/components/ui/GenreChip';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { PosterArt } from '@/components/media';
+import { PosterArt, PosterCard } from '@/components/media';
 import { GENRES } from '@/data';
-import { useSearchStore } from '@/store';
-import { useSeries } from '@/services/content';
+import { useLibraryStore, useSearchStore } from '@/store';
+import { useEpisodes, useSeries } from '@/services/content';
+import { usePosterGridCardWidth } from '@/hooks/usePosterGridCardWidth';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { Series } from '@/types';
+import { getNextEpisode } from '@/utils/nextEpisode';
 import { matchesQuery } from '@/utils/search';
+import type { Series } from '@/types';
 
-const TRENDING_SEARCHES = ['Crimson Contract', 'Revenge', 'Fantasy romance', 'Ever After Glitch', 'Workplace drama'];
+const GRID_COLUMNS = 3;
+const TOP_SEARCHES_COUNT = 8;
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
@@ -24,7 +27,12 @@ export default function SearchScreen() {
   const recentSearches = useSearchStore((s) => s.recentSearches);
   const addRecent = useSearchStore((s) => s.addRecent);
   const clearRecent = useSearchStore((s) => s.clearRecent);
+  const favoriteSeriesIds = useLibraryStore((s) => s.favoriteSeriesIds);
+  const toggleFavorite = useLibraryStore((s) => s.toggleFavorite);
+  const progress = useLibraryStore((s) => s.progress);
   const { data: series } = useSeries();
+  const { data: episodes } = useEpisodes();
+  const cardWidth = usePosterGridCardWidth(GRID_COLUMNS);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -37,9 +45,19 @@ export default function SearchScreen() {
     return series.filter((s) => matchesQuery(s, debouncedQuery));
   }, [debouncedQuery, series]);
 
+  const topSearches = useMemo(
+    () => [...(series ?? [])].sort((a, b) => b.popularity - a.popularity).slice(0, TOP_SEARCHES_COUNT),
+    [series]
+  );
+
   const commitSearch = (text: string) => {
     setQuery(text);
     if (text.trim()) addRecent(text.trim());
+  };
+
+  const playSeries = (s: Series) => {
+    const nextEpisode = getNextEpisode(episodes ?? [], s.id, progress);
+    router.push(nextEpisode ? `/player/${nextEpisode.id}` : `/series/${s.id}`);
   };
 
   const showEmptyResults = debouncedQuery.trim().length > 0 && results.length === 0;
@@ -63,77 +81,72 @@ export default function SearchScreen() {
           autoCorrect={false}
         />
         {query.length > 0 && (
-          <Pressable onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Clear search">
+          <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
             <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
           </Pressable>
         )}
       </View>
 
       {showDiscoveryContent ? (
-        <FlatList
-          data={[1]}
-          keyExtractor={() => 'discovery'}
-          contentContainerStyle={styles.scrollContent}
-          renderItem={() => (
-            <View>
-              {recentSearches.length > 0 && (
-                <View style={styles.section}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Text style={styles.sectionTitle}>{t('search.recentSearches')}</Text>
-                    <Pressable onPress={clearRecent} accessibilityRole="button" accessibilityLabel="Clear recent searches">
-                      <Text style={styles.clearText}>{t('search.clear')}</Text>
-                    </Pressable>
-                  </View>
-                  <View style={styles.chipWrap}>
-                    {recentSearches.map((q) => (
-                      <GenreChip key={q} label={q} onPress={() => commitSearch(q)} />
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t('search.trendingSearches')}</Text>
-                <View style={styles.chipWrap}>
-                  {TRENDING_SEARCHES.map((q) => (
-                    <GenreChip key={q} label={q} onPress={() => commitSearch(q)} />
-                  ))}
-                </View>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {recentSearches.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>{t('search.recentSearches')}</Text>
+                <Pressable onPress={clearRecent} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear recent searches">
+                  <Text style={styles.clearText}>{t('search.clear')}</Text>
+                </Pressable>
               </View>
-
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t('search.browseByGenre')}</Text>
-                <View style={styles.chipWrap}>
-                  {GENRES.map((g) => (
-                    <GenreChip key={g} label={g} onPress={() => commitSearch(g)} />
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t('search.suggestedTitles')}</Text>
-                {(series ?? []).slice(0, 4).map((s) => (
-                  <SuggestedRow key={s.id} series={s} onPress={() => router.push(`/series/${s.id}`)} />
+              <View style={styles.chipWrap}>
+                {recentSearches.map((q) => (
+                  <GenreChip key={q} label={q} onPress={() => commitSearch(q)} />
                 ))}
               </View>
             </View>
           )}
-        />
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t('search.topSearches')}</Text>
+            {topSearches.map((s) => (
+              <TopSearchRow
+                key={s.id}
+                series={s}
+                playLabel={t('search.playSeries', { title: s.title })}
+                onOpen={() => router.push(`/series/${s.id}`)}
+                onPlay={() => playSeries(s)}
+              />
+            ))}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t('search.browseByGenre')}</Text>
+            <View style={styles.chipWrap}>
+              {GENRES.map((g) => (
+                <GenreChip key={g} label={g} onPress={() => commitSearch(g)} />
+              ))}
+            </View>
+          </View>
+        </ScrollView>
       ) : showEmptyResults ? (
-        <EmptyState
-          fill
-          icon="search-outline"
-          title={t('search.emptyTitle', { query: debouncedQuery })}
-          subtitle={t('search.emptySubtitle')}
-        />
+        <EmptyState fill icon="search-outline" title={t('search.emptyTitle', { query: debouncedQuery })} subtitle={t('search.emptySubtitle')} />
       ) : (
         <FlatList
           data={results}
           keyExtractor={(item) => item.id}
+          numColumns={GRID_COLUMNS}
+          columnWrapperStyle={styles.gridRow}
           contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={<Text style={styles.sectionTitle}>{t('search.topResults')}</Text>}
           renderItem={({ item }) => (
-            <SuggestedRow
+            <PosterCard
               series={item}
+              width={cardWidth}
+              height={Math.round(cardWidth * 1.5)}
+              showRating={false}
+              isFavorite={favoriteSeriesIds.includes(item.id)}
+              onToggleFavorite={() => toggleFavorite(item.id)}
               onPress={() => {
                 addRecent(debouncedQuery);
                 router.push(`/series/${item.id}`);
@@ -146,26 +159,41 @@ export default function SearchScreen() {
   );
 }
 
-function SuggestedRow({ series, onPress }: { series: Series; onPress: () => void }) {
+interface TopSearchRowProps {
+  series: Series;
+  playLabel: string;
+  onOpen: () => void;
+  onPlay: () => void;
+}
+
+/** Netflix's Top Searches row: wide thumbnail and title (opens the series),
+ * plus a play button that starts watching straight away. The two targets
+ * are siblings, not nested — a pressable inside a pressable renders as an
+ * invalid <button> inside a <button> on web. */
+function TopSearchRow({ series, playLabel, onOpen, onPlay }: TopSearchRowProps) {
   return (
-    <Pressable onPress={onPress} style={styles.row} accessibilityRole="button" accessibilityLabel={`Open ${series.title}`}>
-      <LinearGradient colors={[series.posterColorFrom, series.posterColorTo]} style={styles.rowThumb}>
-        {series.posterImageUri ? (
-          <Image source={{ uri: series.posterImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        ) : (
-          <PosterArt series={series} />
-        )}
-      </LinearGradient>
-      <View style={styles.rowText}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {series.title}
-        </Text>
-        <Text style={styles.rowSubtitle} numberOfLines={1}>
-          {series.genres.join(' · ')} · ★ {series.rating.toFixed(1)}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-    </Pressable>
+    <View style={styles.topRow}>
+      <Pressable onPress={onOpen} style={styles.topRowMain} accessibilityRole="button" accessibilityLabel={`Open ${series.title}`}>
+        <LinearGradient colors={[series.bannerColorFrom, series.bannerColorTo]} style={styles.topThumb}>
+          {series.posterImageUri ? (
+            <Image source={{ uri: series.posterImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          ) : (
+            <PosterArt series={series} />
+          )}
+        </LinearGradient>
+        <View style={styles.topRowText}>
+          <Text style={styles.topRowTitle} numberOfLines={2}>
+            {series.title}
+          </Text>
+          <Text style={styles.topRowSubtitle} numberOfLines={1}>
+            {series.genres.join(' · ')} · ★ {series.rating.toFixed(1)}
+          </Text>
+        </View>
+      </Pressable>
+      <Pressable onPress={onPlay} hitSlop={8} style={styles.playButton} accessibilityRole="button" accessibilityLabel={playLabel}>
+        <Ionicons name="play-circle-outline" size={34} color={colors.textPrimary} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -191,9 +219,12 @@ const styles = StyleSheet.create({
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.sm },
   clearText: { ...typography.bodyMedium, color: colors.accent },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  rowThumb: { width: 48, height: 68, borderRadius: radius.sm, overflow: 'hidden' },
-  rowText: { flex: 1 },
-  rowTitle: { ...typography.bodyMedium, color: colors.textPrimary },
-  rowSubtitle: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
+  topRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  topThumb: { width: 128, height: 72, borderRadius: radius.sm, overflow: 'hidden' },
+  topRowText: { flex: 1 },
+  topRowTitle: { ...typography.bodyMedium, color: colors.textPrimary },
+  topRowSubtitle: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
+  playButton: { padding: 2 },
+  gridRow: { columnGap: spacing.sm, marginBottom: spacing.md },
 });

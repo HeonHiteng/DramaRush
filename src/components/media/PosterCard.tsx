@@ -17,6 +17,11 @@ interface PosterCardProps {
   progress?: number;
   showRating?: boolean;
   subtitle?: string;
+  /** When provided, shows a quick add/remove-from-list button on the
+   * poster itself — Netflix's "+" row-level shortcut — so favoriting
+   * doesn't require opening the series page first. */
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -29,6 +34,8 @@ export function PosterCard({
   progress,
   showRating = true,
   subtitle,
+  isFavorite = false,
+  onToggleFavorite,
 }: PosterCardProps) {
   const scale = useSharedValue(1);
   const { impact } = useHaptics();
@@ -71,12 +78,33 @@ export function PosterCard({
             </View>
           )}
 
-          {showRating && (
-            <View style={styles.ratingPill}>
-              <Ionicons name="star" size={10} color={colors.gold} />
-              <Text style={styles.ratingText}>{series.rating.toFixed(1)}</Text>
-            </View>
-          )}
+          <View style={styles.topRightStack}>
+            {showRating && (
+              <View style={styles.ratingPill}>
+                <Ionicons name="star" size={10} color={colors.gold} />
+                <Text style={styles.ratingText}>{series.rating.toFixed(1)}</Text>
+              </View>
+            )}
+            {onToggleFavorite && (
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  impact();
+                  onToggleFavorite();
+                }}
+                hitSlop={8}
+                style={styles.quickAddButton}
+                // No accessibilityRole="button" here: the whole card above
+                // this is already a <button> on web, and nesting a <button>
+                // inside a <button> is invalid HTML (React logs a hydration
+                // error and the browser mangles the DOM to fix it, which
+                // broke tapping this icon entirely).
+                accessibilityLabel={isFavorite ? `Remove ${series.title} from My List` : `Add ${series.title} to My List`}
+              >
+                <Ionicons name={isFavorite ? 'checkmark' : 'add'} size={14} color={colors.textPrimary} />
+              </Pressable>
+            )}
+          </View>
 
           {typeof progress === 'number' && (
             <View style={styles.progressWrap}>
@@ -115,10 +143,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   newRibbonText: { ...typography.micro, color: colors.white },
-  ratingPill: {
+  topRightStack: {
     position: 'absolute',
     top: spacing.xs,
     right: spacing.xs,
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  ratingPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
@@ -128,6 +160,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   ratingText: { ...typography.micro, color: colors.textPrimary },
+  quickAddButton: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(11,9,13,0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
   progressWrap: { paddingHorizontal: spacing.xs, paddingBottom: spacing.xs },
   captionTitle: { ...typography.bodyMedium, color: colors.textPrimary, marginTop: spacing.xs },
   captionSubtitle: { ...typography.caption, color: colors.textTertiary, marginTop: 1 },

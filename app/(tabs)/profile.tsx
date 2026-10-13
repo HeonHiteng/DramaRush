@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,7 +10,9 @@ import { CoinBadge } from '@/components/ui/CoinBadge';
 import { PremiumBadge } from '@/components/ui/PremiumBadge';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppModal } from '@/components/ui/AppModal';
+import { SeriesRail } from '@/components/media';
 import { BRAND } from '@/config';
+import { useSeries } from '@/services/content';
 import {
   useUserStore,
   useWalletStore,
@@ -30,7 +32,15 @@ export default function ProfileScreen() {
   const clearHistory = useLibraryStore((s) => s.clearHistory);
   const lockAllPremium = useLibraryStore((s) => s.lockAllPremium);
   const unlockAll = useLibraryStore((s) => s.unlockAll);
+  const favoriteSeriesIds = useLibraryStore((s) => s.favoriteSeriesIds);
+  const { data: allSeries } = useSeries();
   const { t } = useTranslation();
+
+  // In the order they were added (newest first), like Netflix's My List.
+  const myList = useMemo(() => {
+    const byId = new Map((allSeries ?? []).map((s) => [s.id, s]));
+    return favoriteSeriesIds.flatMap((id) => byId.get(id) ?? []);
+  }, [allSeries, favoriteSeriesIds]);
 
   const [demoExpanded, setDemoExpanded] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -76,22 +86,22 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        <View style={styles.profileCard}>
+        <View style={styles.profileHero}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initial}</Text>
           </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.name}>{displayName}</Text>
-            {user?.email ? <Text style={styles.email}>{user.email}</Text> : null}
-            <View style={styles.badgeRow}>
-              {subscription.isActive ? (
-                <PremiumBadge compact />
-              ) : (
-                <View style={styles.freeBadge}>
-                  <Text style={styles.freeBadgeText}>{t('profile.freeMember')}</Text>
-                </View>
-              )}
-            </View>
+          <Text style={styles.name} numberOfLines={1}>
+            {displayName}
+          </Text>
+          {user?.email ? <Text style={styles.email}>{user.email}</Text> : null}
+          <View style={styles.badgeRow}>
+            {subscription.isActive ? (
+              <PremiumBadge compact />
+            ) : (
+              <View style={styles.freeBadge}>
+                <Text style={styles.freeBadgeText}>{t('profile.freeMember')}</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -123,6 +133,13 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.textPrimary} />
           </LinearGradient>
         </Pressable>
+
+        {myList.length > 0 && (
+          // Bleeds past this screen's side padding: SeriesRail insets itself.
+          <View style={styles.railBleed}>
+            <SeriesRail title={t('series.myList')} series={myList} onSeeAll={() => router.push('/library')} />
+          </View>
+        )}
 
         <View style={styles.menuGroup}>
           <ProfileMenuItem icon="time-outline" label={t('profile.watchHistory')} onPress={() => router.push('/library')} />
@@ -242,20 +259,22 @@ const styles = StyleSheet.create({
   header: { ...typography.h1, color: colors.textPrimary },
   prototypeBadge: { backgroundColor: colors.info, paddingHorizontal: spacing.xs, paddingVertical: 3, borderRadius: radius.sm },
   prototypeBadgeText: { ...typography.micro, color: colors.white },
-  profileCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
+  profileHero: { alignItems: 'center', marginBottom: spacing.xl },
+  // Netflix's profile tile: a large rounded square, not a circle.
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 88,
+    height: 88,
+    borderRadius: radius.lg,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
-  avatarText: { ...typography.h1, color: colors.white },
-  profileInfo: { flex: 1 },
-  name: { ...typography.h2, color: colors.textPrimary },
+  avatarText: { ...typography.display, color: colors.white },
+  name: { ...typography.h2, color: colors.textPrimary, maxWidth: '100%' },
   email: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
   badgeRow: { flexDirection: 'row', marginTop: spacing.xs },
+  railBleed: { marginHorizontal: -spacing.lg },
   freeBadge: { backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.xs, paddingVertical: 3, borderRadius: radius.sm },
   freeBadgeText: { ...typography.micro, color: colors.textTertiary },
   upgradeCard: {
