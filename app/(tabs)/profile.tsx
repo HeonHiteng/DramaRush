@@ -62,7 +62,7 @@ export default function ProfileScreen() {
   };
 
   const displayName = user?.displayName ?? 'Guest Viewer';
-  const initial = displayName.trim().charAt(0).toUpperCase() || 'D';
+  const initial = displayName.trim().charAt(0).toUpperCase() || BRAND.name.charAt(0);
 
   return (
     <Screen>

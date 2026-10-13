@@ -45,7 +45,7 @@ export default function SplashScreen() {
   return (
     <LinearGradient colors={gradients.splash} style={styles.container}>
       <Animated.View style={[styles.logoMark, logoStyle]}>
-        <Text style={styles.logoGlyph}>D</Text>
+        <Text style={styles.logoGlyph}>{BRAND.name.charAt(0)}</Text>
       </Animated.View>
       <Animated.Text style={[styles.brandName, logoStyle]}>{BRAND.name}</Animated.Text>
       <Animated.Text style={[styles.tagline, taglineStyle]}>{BRAND.tagline}</Animated.Text>

@@ -24,6 +24,10 @@ interface UserState {
   signInWithEmail: (email: string, password: string) => Promise<boolean>;
   upgradeGuestAccount: (name: string, email: string, password: string) => Promise<boolean>;
   signInWithOAuth: (provider: 'google' | 'apple') => Promise<boolean>;
+  /** Sends a 6-digit code to `phone` over WhatsApp. Call verifyPhoneOtp with
+   * the code the user receives to actually complete sign-in. */
+  signInWithPhoneOtp: (phone: string) => Promise<boolean>;
+  verifyPhoneOtp: (phone: string, token: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   clearAuthError: () => void;
   /** Called by AuthListener whenever Supabase's session changes. */
@@ -111,6 +115,14 @@ export const useUserStore = create<UserState>()(
         }
         return ok;
       },
+
+      // WhatsApp is just the phone number's delivery channel for Supabase's
+      // existing phone-OTP auth — verification itself is still `type: 'sms'`
+      // regardless of which channel sent the code.
+      signInWithPhoneOtp: (phone) =>
+        runAuthAction(set, () => supabase.auth.signInWithOtp({ phone, options: { channel: 'whatsapp' } })),
+
+      verifyPhoneOtp: (phone, token) => runAuthAction(set, () => supabase.auth.verifyOtp({ phone, token, type: 'sms' })),
 
       signInWithOAuth: async (provider) => {
         set({ isAuthenticating: true, authError: null });

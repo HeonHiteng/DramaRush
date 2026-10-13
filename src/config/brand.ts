@@ -1,12 +1,12 @@
 /**
  * Central brand configuration — nothing else in the app should hardcode the
- * product name. "Keybox" is the real product name ("DramaRush" was the
- * prototype placeholder).
+ * product name. "KBbox" is the real product name ("DramaRush" was the
+ * prototype placeholder, "Keybox" an earlier rename).
  */
 export const BRAND = {
-  name: 'Keybox',
+  name: 'KBbox',
   tagline: 'Stories made for every moment.',
-  legalName: 'Keybox',
+  legalName: 'KBbox',
   scheme: 'keybox',
   supportEmail: 'support@dramarush.app',
   websiteUrl: 'https://dramarush.app',

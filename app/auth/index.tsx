@@ -19,7 +19,7 @@ const emailSchema = z.object({
 });
 type EmailFormValues = z.infer<typeof emailSchema>;
 
-type PendingAction = 'guest' | 'email' | 'google' | null;
+type PendingAction = 'guest' | 'email' | 'google' | 'whatsapp' | null;
 
 /** The screen renders two fairly different pitches depending on why it was
  * opened (see the comment on `isUpgrade` below) — collecting what differs
@@ -36,6 +36,10 @@ function getScreenCopy(isUpgrade: boolean, t: ReturnType<typeof useTranslation>[
     // wallet/unlocks/history). Not built yet, so hide it in upgrade mode
     // rather than offer something that would lose the user's data.
     showGoogleButton: !isUpgrade,
+    // Same reasoning as showGoogleButton: linking a phone number to an
+    // existing guest session isn't built yet, so don't offer it where it
+    // would silently start a second account instead.
+    showWhatsAppButton: !isUpgrade,
     showLegalDisclosure: !isUpgrade,
   };
 }
@@ -55,6 +59,8 @@ export default function AuthScreen() {
   const signInWithEmail = useUserStore((s) => s.signInWithEmail);
   const upgradeGuestAccount = useUserStore((s) => s.upgradeGuestAccount);
   const signInWithOAuth = useUserStore((s) => s.signInWithOAuth);
+  const signInWithPhoneOtp = useUserStore((s) => s.signInWithPhoneOtp);
+  const verifyPhoneOtp = useUserStore((s) => s.verifyPhoneOtp);
   const isAuthenticating = useUserStore((s) => s.isAuthenticating);
   const authError = useUserStore((s) => s.authError);
   const clearAuthError = useUserStore((s) => s.clearAuthError);
@@ -62,6 +68,10 @@ export default function AuthScreen() {
   const [pending, setPending] = useState<PendingAction>(null);
   const [showEmailForm, setShowEmailForm] = useState(isUpgrade);
   const [mode, setMode] = useState<'signup' | 'signin'>('signup');
+  const [showPhoneForm, setShowPhoneForm] = useState(false);
+  const [phoneStep, setPhoneStep] = useState<'phone' | 'otp'>('phone');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otpCode, setOtpCode] = useState('');
 
   const {
     control,
@@ -78,6 +88,22 @@ export default function AuthScreen() {
     const succeeded = await task();
     setPending(null);
     if (succeeded) router.replace('/(tabs)');
+  };
+
+  const handleSendCode = async () => {
+    clearAuthError();
+    setPending('whatsapp');
+    const ok = await signInWithPhoneOtp(phoneNumber.trim());
+    setPending(null);
+    if (ok) setPhoneStep('otp');
+  };
+
+  const handleVerifyCode = () => runSignIn('whatsapp', () => verifyPhoneOtp(phoneNumber.trim(), otpCode.trim()));
+
+  const handleChangeNumber = () => {
+    clearAuthError();
+    setPhoneStep('phone');
+    setOtpCode('');
   };
 
   const onSubmitEmail = (values: EmailFormValues) => {
@@ -100,7 +126,7 @@ export default function AuthScreen() {
       <LinearGradient colors={gradients.splash} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.logoMark}>
-            <Text style={styles.logoGlyph}>D</Text>
+            <Text style={styles.logoGlyph}>{BRAND.name.charAt(0)}</Text>
           </View>
           <Text style={styles.title}>{copy.title}</Text>
           <Text style={styles.subtitle}>{copy.subtitle}</Text>
@@ -153,6 +179,31 @@ export default function AuthScreen() {
                 icon={<Ionicons name="logo-google" size={18} color={colors.textPrimary} />}
               />
             )}
+
+            {copy.showWhatsAppButton &&
+              (!showPhoneForm ? (
+                <AppButton
+                  label={t('auth.continueWithWhatsApp')}
+                  onPress={() => setShowPhoneForm(true)}
+                  variant="secondary"
+                  fullWidth
+                  disabled={isAuthenticating}
+                  icon={<Ionicons name="logo-whatsapp" size={18} color={colors.textPrimary} />}
+                />
+              ) : (
+                <PhoneAuthForm
+                  step={phoneStep}
+                  phoneNumber={phoneNumber}
+                  onPhoneNumberChange={setPhoneNumber}
+                  otpCode={otpCode}
+                  onOtpCodeChange={setOtpCode}
+                  onSendCode={handleSendCode}
+                  onVerifyCode={handleVerifyCode}
+                  onChangeNumber={handleChangeNumber}
+                  submitting={pending === 'whatsapp'}
+                  error={pending === null ? authError : null}
+                />
+              ))}
           </View>
 
           {copy.showLegalDisclosure && (
@@ -271,6 +322,89 @@ function EmailAuthForm({ control, errors, mode, onModeChange, onSubmit, submitti
   );
 }
 
+interface PhoneAuthFormProps {
+  step: 'phone' | 'otp';
+  phoneNumber: string;
+  onPhoneNumberChange: (value: string) => void;
+  otpCode: string;
+  onOtpCodeChange: (value: string) => void;
+  onSendCode: () => void;
+  onVerifyCode: () => void;
+  onChangeNumber: () => void;
+  submitting: boolean;
+  error: string | null;
+}
+
+/** Two-step WhatsApp sign-in: collect a phone number, send a 6-digit code to
+ * it over WhatsApp, then collect that code to finish signing in. Mirrors
+ * EmailAuthForm's shape (same styles, same submitting/error props) so the
+ * two forms read as siblings rather than two different patterns. */
+function PhoneAuthForm({
+  step,
+  phoneNumber,
+  onPhoneNumberChange,
+  otpCode,
+  onOtpCodeChange,
+  onSendCode,
+  onVerifyCode,
+  onChangeNumber,
+  submitting,
+  error,
+}: PhoneAuthFormProps) {
+  const { t } = useTranslation();
+
+  if (step === 'phone') {
+    return (
+      <View style={styles.emailForm}>
+        <View style={styles.fieldWrap}>
+          <TextInput
+            style={styles.input}
+            placeholder={t('auth.phonePlaceholder')}
+            placeholderTextColor={colors.textTertiary}
+            value={phoneNumber}
+            onChangeText={onPhoneNumberChange}
+            accessibilityLabel="Phone number"
+            autoCapitalize="none"
+            keyboardType="phone-pad"
+            textContentType="telephoneNumber"
+          />
+        </View>
+        {error && <Text style={styles.errorText}>{error}</Text>}
+        <AppButton
+          label={t('auth.sendCodeViaWhatsApp')}
+          onPress={onSendCode}
+          variant="primary"
+          fullWidth
+          loading={submitting}
+          disabled={phoneNumber.trim().length < 8}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.emailForm}>
+      <Text style={styles.otpSubtitle}>{t('auth.otpSubtitle', { phone: phoneNumber.trim() })}</Text>
+      <View style={styles.fieldWrap}>
+        <TextInput
+          style={styles.input}
+          placeholder={t('auth.otpPlaceholder')}
+          placeholderTextColor={colors.textTertiary}
+          value={otpCode}
+          onChangeText={onOtpCodeChange}
+          accessibilityLabel="Verification code"
+          keyboardType="number-pad"
+          textContentType="oneTimeCode"
+          maxLength={6}
+        />
+      </View>
+      {error && <Text style={styles.errorText}>{error}</Text>}
+      <AppButton label={t('auth.verifyCode')} onPress={onVerifyCode} variant="primary" fullWidth loading={submitting} disabled={otpCode.trim().length < 6} />
+      <AppButton label={t('auth.changeNumber')} onPress={onChangeNumber} variant="ghost" fullWidth disabled={submitting} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
@@ -303,6 +437,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   },
+  otpSubtitle: { ...typography.caption, color: colors.textTertiary },
   modeToggleRow: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.xs },
   modeToggleButton: { flex: 1 },
   fieldWrap: { gap: 4 },
