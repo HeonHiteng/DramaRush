@@ -54,6 +54,12 @@ function friendlyAuthError(error: unknown): string {
   return 'Something went wrong signing in. Please try again.';
 }
 
+/** "+60 12-345 6789" -> "+60123456789": Supabase rejects spaces and dashes in phone numbers. */
+export function normalizePhone(phone: string): string {
+  const trimmed = phone.trim();
+  return (trimmed.startsWith('+') ? '+' : '') + trimmed.replace(/\D/g, '');
+}
+
 /** Every sign-in/sign-up action below (except OAuth, whose multi-step,
  * multi-return-point flow doesn't fit this shape) follows the same pattern:
  * flip `isAuthenticating` on, run one Supabase auth call, translate its
@@ -178,13 +184,14 @@ export const useUserStore = create<UserState>()(
         return ok;
       },
 
-      // WhatsApp is just the phone number's delivery channel for Supabase's
-      // existing phone-OTP auth — verification itself is still `type: 'sms'`
-      // regardless of which channel sent the code.
-      signInWithPhoneOtp: (phone) =>
-        runAuthAction(set, () => supabase.auth.signInWithOtp({ phone, options: { channel: 'whatsapp' } })),
+      // Supabase generates the code; its "Send SMS" auth hook hands it to our
+      // shared otp-hub service, which delivers it over WhatsApp (Meta Cloud
+      // API). So: no `channel` option — 'whatsapp' would make Supabase look
+      // for a Twilio WhatsApp sender — and verification stays `type: 'sms'`.
+      signInWithPhoneOtp: (phone) => runAuthAction(set, () => supabase.auth.signInWithOtp({ phone: normalizePhone(phone) })),
 
-      verifyPhoneOtp: (phone, token) => runAuthAction(set, () => supabase.auth.verifyOtp({ phone, token, type: 'sms' })),
+      verifyPhoneOtp: (phone, token) =>
+        runAuthAction(set, () => supabase.auth.verifyOtp({ phone: normalizePhone(phone), token, type: 'sms' })),
 
       signInWithOAuth: (provider) =>
         runOAuthFlow(set, (options) => supabase.auth.signInWithOAuth({ provider, options })),
