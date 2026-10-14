@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -21,6 +21,25 @@ import {
   resetPrototype,
 } from '@/store';
 import { useTranslation } from '@/i18n/useTranslation';
+import type { TranslationKey } from '@/i18n/translations';
+import type { AuthProvider } from '@/types';
+import { formatPhone } from '@/utils/phone';
+
+const PROVIDER_LABEL: Record<AuthProvider, TranslationKey> = {
+  guest: 'profile.via.guest',
+  email: 'profile.via.email',
+  phone: 'profile.via.phone',
+  google: 'profile.via.google',
+  apple: 'profile.via.apple',
+};
+
+const PROVIDER_ICON: Record<AuthProvider, React.ComponentProps<typeof Ionicons>['name']> = {
+  guest: 'person-outline',
+  email: 'mail-outline',
+  phone: 'logo-whatsapp',
+  google: 'logo-google',
+  apple: 'logo-apple',
+};
 
 export default function ProfileScreen() {
   const user = useUserStore((s) => s.user);
@@ -44,6 +63,7 @@ export default function ProfileScreen() {
 
   const [demoExpanded, setDemoExpanded] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
+  const [editingName, setEditingName] = useState(false);
   const [resetting, setResetting] = useState(false);
 
   const handleReset = async () => {
@@ -72,6 +92,7 @@ export default function ProfileScreen() {
   };
 
   const displayName = user?.displayName ?? 'Guest Viewer';
+  const contact = user?.email ?? (user?.phone ? formatPhone(user.phone) : null);
   const initial = displayName.trim().charAt(0).toUpperCase() || BRAND.name.charAt(0);
 
   return (
@@ -90,10 +111,35 @@ export default function ProfileScreen() {
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initial}</Text>
           </View>
-          <Text style={styles.name} numberOfLines={1}>
-            {displayName}
-          </Text>
-          {user?.email ? <Text style={styles.email}>{user.email}</Text> : null}
+          <View style={styles.nameRow}>
+            <Text style={styles.name} numberOfLines={1}>
+              {displayName}
+            </Text>
+            {user && (
+              <Pressable
+                onPress={() => setEditingName(true)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={t('profile.editName')}
+              >
+                <Ionicons name="create-outline" size={18} color={colors.textTertiary} />
+              </Pressable>
+            )}
+          </View>
+          {contact ? <Text style={styles.email}>{contact}</Text> : null}
+          {user && (
+            <View style={styles.metaRow}>
+              <View style={styles.metaChip}>
+                <Ionicons name={PROVIDER_ICON[user.provider]} size={12} color={colors.textTertiary} />
+                <Text style={styles.metaText}>{t(PROVIDER_LABEL[user.provider])}</Text>
+              </View>
+              {user.publicCode ? (
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaText}>{t('profile.memberId', { id: user.publicCode })}</Text>
+                </View>
+              ) : null}
+            </View>
+          )}
           <View style={styles.badgeRow}>
             {subscription.isActive ? (
               <PremiumBadge compact />
@@ -220,6 +266,8 @@ export default function ProfileScreen() {
         <Text style={styles.footerNote}>{t('profile.footerNote', { brand: BRAND.name })}</Text>
       </ScrollView>
 
+      <EditNameModal visible={editingName} currentName={displayName} onClose={() => setEditingName(false)} />
+
       <AppModal visible={confirmVisible} onClose={() => setConfirmVisible(false)}>
         <View style={styles.confirmIconWrap}>
           <Ionicons name="warning" size={26} color={colors.danger} />
@@ -253,6 +301,52 @@ function DemoButton({ label, onPress, destructive }: { label: string; onPress: (
   );
 }
 
+function EditNameModal({ visible, currentName, onClose }: { visible: boolean; currentName: string; onClose: () => void }) {
+  const { t } = useTranslation();
+  const updateDisplayName = useUserStore((s) => s.updateDisplayName);
+  const [name, setName] = useState(currentName);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (visible) {
+      setName(currentName);
+      setError(null);
+    }
+  }, [visible, currentName]);
+
+  const save = async () => {
+    setSaving(true);
+    const message = await updateDisplayName(name);
+    setSaving(false);
+    if (message) setError(message);
+    else onClose();
+  };
+
+  return (
+    <AppModal visible={visible} onClose={onClose}>
+      <Text style={styles.editTitle}>{t('profile.editName')}</Text>
+      <TextInput
+        style={styles.editInput}
+        value={name}
+        onChangeText={setName}
+        maxLength={40}
+        autoFocus
+        placeholder={t('profile.namePlaceholder')}
+        placeholderTextColor={colors.textTertiary}
+        accessibilityLabel={t('profile.editName')}
+        returnKeyType="done"
+        onSubmitEditing={save}
+      />
+      {error && <Text style={styles.editError}>{error}</Text>}
+      <View style={styles.editActions}>
+        <AppButton label={t('profile.saveName')} onPress={save} variant="primary" fullWidth loading={saving} disabled={!name.trim()} />
+        <AppButton label={t('common.cancel')} onPress={onClose} variant="ghost" fullWidth disabled={saving} />
+      </View>
+    </AppModal>
+  );
+}
+
 const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm, marginBottom: spacing.md },
@@ -271,7 +365,33 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   avatarText: { ...typography.display, color: colors.white },
-  name: { ...typography.h2, color: colors.textPrimary, maxWidth: '100%' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, maxWidth: '100%' },
+  name: { ...typography.h2, color: colors.textPrimary, flexShrink: 1 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.xs, marginTop: spacing.xs },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+  },
+  metaText: { ...typography.micro, color: colors.textTertiary },
+  editTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md, textAlign: 'center' },
+  editInput: {
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.textPrimary,
+    ...typography.body,
+    borderWidth: 1,
+    borderColor: colors.border,
+    width: '100%',
+  },
+  editError: { ...typography.caption, color: colors.danger, marginTop: spacing.xs },
+  editActions: { width: '100%', gap: spacing.sm, marginTop: spacing.md },
   email: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
   badgeRow: { flexDirection: 'row', marginTop: spacing.xs },
   railBleed: { marginHorizontal: -spacing.lg },

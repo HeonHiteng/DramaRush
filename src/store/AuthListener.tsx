@@ -12,8 +12,9 @@ import type { AuthProvider, MockUser } from '@/types';
 
 function detectProvider(session: Session): AuthProvider {
   if (session.user.is_anonymous) return 'guest';
-  const metaProvider = session.user.user_metadata?.provider as AuthProvider | undefined;
-  if (metaProvider === 'google' || metaProvider === 'apple') return metaProvider;
+  // Supabase records how the account signs in (email / phone / google / apple).
+  const provider = (session.user.app_metadata?.provider ?? session.user.user_metadata?.provider) as string | undefined;
+  if (provider === 'phone' || provider === 'google' || provider === 'apple') return provider;
   return 'email';
 }
 
@@ -21,7 +22,7 @@ async function loadMockUser(session: Session): Promise<MockUser> {
   const provider = detectProvider(session);
   const { data: profile } = await supabase
     .from('profiles')
-    .select('display_name, avatar_seed, is_admin')
+    .select('display_name, avatar_seed, is_admin, public_code')
     .eq('user_id', session.user.id)
     .maybeSingle();
 
@@ -30,7 +31,9 @@ async function loadMockUser(session: Session): Promise<MockUser> {
   return {
     id: session.user.id,
     displayName: profile?.display_name ?? fallbackName,
-    email: session.user.email ?? undefined,
+    email: session.user.email || undefined,
+    phone: session.user.phone || undefined,
+    publicCode: profile?.public_code ?? undefined,
     avatarSeed: profile?.avatar_seed ?? profile?.display_name ?? fallbackName,
     provider,
     createdAt: session.user.created_at,
