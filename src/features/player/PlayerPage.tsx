@@ -406,7 +406,7 @@ export function PlayerPage({
           style={StyleSheet.absoluteFill}
           onPress={() => setControlsVisible((v) => !v)}
           accessibilityRole="button"
-          accessibilityLabel={isPlaying ? t('player.pauseVideo') : t('player.playVideo')}
+          accessibilityLabel={t('player.toggleControls')}
         />
       )}
 
@@ -432,6 +432,8 @@ export function PlayerPage({
           playbackSpeed={SPEED_STEPS[speedIndex]}
           isMuted={isMuted}
           nextCountdown={nextCountdown}
+          hasNext={hasNext}
+          onNextEpisode={onAutoAdvance}
           onTogglePlay={togglePlay}
           onClose={onClose}
           onToggleFavorite={onToggleFavorite}

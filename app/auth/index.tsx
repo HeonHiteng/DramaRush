@@ -30,16 +30,6 @@ function getScreenCopy(isUpgrade: boolean, t: ReturnType<typeof useTranslation>[
     title: isUpgrade ? t('auth.upgradeTitle') : t('auth.welcome', { brand: BRAND.name }),
     subtitle: isUpgrade ? t('auth.upgradeSubtitle') : t('auth.subtitle'),
     showGuestButton: !isUpgrade,
-    // Linking Google to an existing guest session needs
-    // supabase.auth.linkIdentity, not signInWithOAuth (which would sign
-    // into/create a *separate* account, silently orphaning the guest's
-    // wallet/unlocks/history). Not built yet, so hide it in upgrade mode
-    // rather than offer something that would lose the user's data.
-    showGoogleButton: !isUpgrade,
-    // Same reasoning as showGoogleButton: linking a phone number to an
-    // existing guest session isn't built yet, so don't offer it where it
-    // would silently start a second account instead.
-    showWhatsAppButton: !isUpgrade,
     showLegalDisclosure: !isUpgrade,
   };
 }
@@ -61,11 +51,17 @@ export default function AuthScreen() {
   const signInWithOAuth = useUserStore((s) => s.signInWithOAuth);
   const signInWithPhoneOtp = useUserStore((s) => s.signInWithPhoneOtp);
   const verifyPhoneOtp = useUserStore((s) => s.verifyPhoneOtp);
+  const linkOAuthIdentity = useUserStore((s) => s.linkOAuthIdentity);
+  const linkPhoneOtp = useUserStore((s) => s.linkPhoneOtp);
+  const verifyLinkedPhoneOtp = useUserStore((s) => s.verifyLinkedPhoneOtp);
   const isAuthenticating = useUserStore((s) => s.isAuthenticating);
   const authError = useUserStore((s) => s.authError);
   const clearAuthError = useUserStore((s) => s.clearAuthError);
 
   const [pending, setPending] = useState<PendingAction>(null);
+  // Which action the current authError belongs to, so it's shown beside
+  // that action only — not repeated in every form on the screen.
+  const [lastAttempt, setLastAttempt] = useState<PendingAction>(null);
   const [showEmailForm, setShowEmailForm] = useState(isUpgrade);
   const [mode, setMode] = useState<'signup' | 'signin'>('signup');
   const [showPhoneForm, setShowPhoneForm] = useState(false);
@@ -82,8 +78,14 @@ export default function AuthScreen() {
     defaultValues: { name: '', email: '', password: '' },
   });
 
+  const errorFor = (action: PendingAction) => (pending === null && lastAttempt === action ? authError : null);
+  // Guest sign-in errors, plus any error already set when this screen opened
+  // (e.g. the automatic guest sign-in failed and sent the user here).
+  const topError = errorFor('guest') ?? errorFor(null);
+
   const runSignIn = async (action: Exclude<PendingAction, null>, task: () => Promise<boolean>) => {
     clearAuthError();
+    setLastAttempt(action);
     setPending(action);
     const succeeded = await task();
     setPending(null);
@@ -92,13 +94,23 @@ export default function AuthScreen() {
 
   const handleSendCode = async () => {
     clearAuthError();
+    setLastAttempt('whatsapp');
     setPending('whatsapp');
-    const ok = await signInWithPhoneOtp(phoneNumber.trim());
+    // Upgrading a guest attaches the number to their current account;
+    // otherwise it's an ordinary sign-in.
+    const sendCode = isUpgrade ? linkPhoneOtp : signInWithPhoneOtp;
+    const ok = await sendCode(phoneNumber.trim());
     setPending(null);
     if (ok) setPhoneStep('otp');
   };
 
-  const handleVerifyCode = () => runSignIn('whatsapp', () => verifyPhoneOtp(phoneNumber.trim(), otpCode.trim()));
+  const handleVerifyCode = () => {
+    const verify = isUpgrade ? verifyLinkedPhoneOtp : verifyPhoneOtp;
+    runSignIn('whatsapp', () => verify(phoneNumber.trim(), otpCode.trim()));
+  };
+
+  const handleGoogle = () =>
+    runSignIn('google', () => (isUpgrade ? linkOAuthIdentity('google') : signInWithOAuth('google')));
 
   const handleChangeNumber = () => {
     clearAuthError();
@@ -132,9 +144,7 @@ export default function AuthScreen() {
           <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
           <View style={styles.actions}>
-            {authError && pending === null && !showEmailForm && (
-              <Text style={styles.errorText}>{authError}</Text>
-            )}
+            {topError && <Text style={styles.errorText}>{topError}</Text>}
             {copy.showGuestButton && (
               <AppButton
                 label={t('auth.continueAsGuest')}
@@ -164,46 +174,44 @@ export default function AuthScreen() {
                 onModeChange={setMode}
                 onSubmit={handleSubmit(onSubmitEmail)}
                 submitting={pending === 'email'}
-                error={pending === null ? authError : null}
+                error={errorFor('email')}
               />
             )}
 
-            {copy.showGoogleButton && (
+            <AppButton
+              label={t('auth.continueWithGoogle')}
+              onPress={handleGoogle}
+              variant="secondary"
+              fullWidth
+              loading={pending === 'google'}
+              disabled={isAuthenticating && pending !== 'google'}
+              icon={<Ionicons name="logo-google" size={18} color={colors.textPrimary} />}
+            />
+            {errorFor('google') && <Text style={styles.errorText}>{errorFor('google')}</Text>}
+
+            {!showPhoneForm ? (
               <AppButton
-                label={t('auth.continueWithGoogle')}
-                onPress={() => runSignIn('google', () => signInWithOAuth('google'))}
+                label={t('auth.continueWithWhatsApp')}
+                onPress={() => setShowPhoneForm(true)}
                 variant="secondary"
                 fullWidth
-                loading={pending === 'google'}
-                disabled={isAuthenticating && pending !== 'google'}
-                icon={<Ionicons name="logo-google" size={18} color={colors.textPrimary} />}
+                disabled={isAuthenticating}
+                icon={<Ionicons name="logo-whatsapp" size={18} color={colors.textPrimary} />}
+              />
+            ) : (
+              <PhoneAuthForm
+                step={phoneStep}
+                phoneNumber={phoneNumber}
+                onPhoneNumberChange={setPhoneNumber}
+                otpCode={otpCode}
+                onOtpCodeChange={setOtpCode}
+                onSendCode={handleSendCode}
+                onVerifyCode={handleVerifyCode}
+                onChangeNumber={handleChangeNumber}
+                submitting={pending === 'whatsapp'}
+                error={errorFor('whatsapp')}
               />
             )}
-
-            {copy.showWhatsAppButton &&
-              (!showPhoneForm ? (
-                <AppButton
-                  label={t('auth.continueWithWhatsApp')}
-                  onPress={() => setShowPhoneForm(true)}
-                  variant="secondary"
-                  fullWidth
-                  disabled={isAuthenticating}
-                  icon={<Ionicons name="logo-whatsapp" size={18} color={colors.textPrimary} />}
-                />
-              ) : (
-                <PhoneAuthForm
-                  step={phoneStep}
-                  phoneNumber={phoneNumber}
-                  onPhoneNumberChange={setPhoneNumber}
-                  otpCode={otpCode}
-                  onOtpCodeChange={setOtpCode}
-                  onSendCode={handleSendCode}
-                  onVerifyCode={handleVerifyCode}
-                  onChangeNumber={handleChangeNumber}
-                  submitting={pending === 'whatsapp'}
-                  error={pending === null ? authError : null}
-                />
-              ))}
           </View>
 
           {copy.showLegalDisclosure && (

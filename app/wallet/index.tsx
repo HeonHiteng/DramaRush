@@ -84,26 +84,34 @@ export default function WalletScreen() {
         <DailyMissionCard />
 
         <Text style={styles.sectionTitle}>{t('wallet.coinPackages')}</Text>
-        <View style={styles.packagesGrid}>
+        {/* Full-width rows rather than a 2-up grid: every package reads the
+            same way at any screen width, with the price as the action. */}
+        <View style={styles.packageList}>
           {COIN_PACKAGES.map((pkg) => (
             <Pressable
               key={pkg.id}
               onPress={() => openConfirm(pkg)}
-              style={styles.packageCard}
+              style={[styles.packageRow, pkg.badge && styles.packageRowFeatured]}
               accessibilityRole="button"
               accessibilityLabel={`Buy ${pkg.coins} coins for ${pkg.priceLabel}`}
             >
-              {pkg.badge && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{pkg.badge}</Text>
-                </View>
-              )}
               <Text style={styles.packageIcon}>{BRAND.currency.coinSymbol}</Text>
-              <Text style={styles.packageCoins}>{pkg.coins.toLocaleString()}</Text>
-              {pkg.bonusCoins > 0 && (
-                <Text style={styles.packageBonus}>{t('wallet.bonusSuffix', { bonus: pkg.bonusCoins })}</Text>
-              )}
-              <Text style={styles.packagePrice}>{pkg.priceLabel}</Text>
+              <View style={styles.packageInfo}>
+                <View style={styles.packageTitleRow}>
+                  <Text style={styles.packageCoins}>{pkg.coins.toLocaleString()}</Text>
+                  {pkg.badge && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{pkg.badge}</Text>
+                    </View>
+                  )}
+                </View>
+                {pkg.bonusCoins > 0 && (
+                  <Text style={styles.packageBonus}>{t('wallet.bonusSuffix', { bonus: pkg.bonusCoins })}</Text>
+                )}
+              </View>
+              <View style={styles.pricePill}>
+                <Text style={styles.pricePillText}>{pkg.priceLabel}</Text>
+              </View>
             </Pressable>
           ))}
         </View>
@@ -173,29 +181,33 @@ const styles = StyleSheet.create({
   balanceCard: { borderRadius: radius.xl, padding: spacing.xl, alignItems: 'center', marginBottom: spacing.xl },
   balanceLabel: { ...typography.body, color: 'rgba(255,255,255,0.75)', marginBottom: spacing.sm },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.sm },
-  packagesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  packageCard: {
-    width: '47%',
+  packageList: { gap: spacing.sm, marginBottom: spacing.md },
+  packageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.md,
-    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
-  badge: {
-    position: 'absolute',
-    top: -8,
-    backgroundColor: colors.accent,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: radius.sm,
-  },
+  packageRowFeatured: { borderColor: colors.accent },
+  packageIcon: { fontSize: 26 },
+  packageInfo: { flex: 1 },
+  packageTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
+  packageCoins: { ...typography.h3, color: colors.textPrimary },
+  badge: { backgroundColor: colors.accent, paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: radius.sm },
   badgeText: { ...typography.micro, color: colors.white },
-  packageIcon: { fontSize: 26, marginBottom: spacing.xs, marginTop: spacing.xs },
-  packageCoins: { ...typography.h2, color: colors.textPrimary },
   packageBonus: { ...typography.caption, color: colors.gold, marginTop: 2 },
-  packagePrice: { ...typography.bodyMedium, color: colors.textSecondary, marginTop: spacing.sm },
+  pricePill: {
+    backgroundColor: colors.white,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  pricePillText: { ...typography.bodyMedium, color: colors.textInverse, fontWeight: '700' },
   linkRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl },
   linkButton: { flex: 1 },
   historyList: { gap: 0 },

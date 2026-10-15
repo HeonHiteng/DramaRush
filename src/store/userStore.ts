@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
+import type { UserAttributes } from '@supabase/supabase-js';
 import type { MockUser } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { DEFAULT_GUEST_NAME } from '@/config';
@@ -28,6 +29,16 @@ interface UserState {
    * the code the user receives to actually complete sign-in. */
   signInWithPhoneOtp: (phone: string) => Promise<boolean>;
   verifyPhoneOtp: (phone: string, token: string) => Promise<boolean>;
+  /**
+   * Guest-upgrade counterparts of signInWithOAuth / signInWithPhoneOtp: they
+   * attach the Google login or phone number to the *current* (anonymous)
+   * account rather than signing into a new one, so the guest's wallet,
+   * unlocks and history stay theirs — the same reason upgradeGuestAccount
+   * uses updateUser instead of signUp.
+   */
+  linkOAuthIdentity: (provider: 'google') => Promise<boolean>;
+  linkPhoneOtp: (phone: string) => Promise<boolean>;
+  verifyLinkedPhoneOtp: (phone: string, token: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   clearAuthError: () => void;
   /** Called by AuthListener whenever Supabase's session changes. */
@@ -36,7 +47,10 @@ interface UserState {
 }
 
 function friendlyAuthError(error: unknown): string {
-  if (error instanceof Error) return error.message;
+  // supabase-js reports auth-server 5xx responses with the HTTP Response
+  // object stringified as the message — literally "{}" — so the server's own
+  // reason never reaches us. Show something readable instead of "{}".
+  if (error instanceof Error && error.message && error.message !== '{}') return error.message;
   return 'Something went wrong signing in. Please try again.';
 }
 
@@ -54,6 +68,54 @@ async function runAuthAction(
   const { error } = await action();
   set({ isAuthenticating: false, authError: error ? friendlyAuthError(error) : null });
   return !error;
+}
+
+type OAuthStart = (options: { redirectTo: string; skipBrowserRedirect: boolean }) => Promise<{
+  data: { url?: string | null } | null;
+  error: unknown;
+}>;
+
+/**
+ * The browser round-trip shared by OAuth sign-in and OAuth identity linking:
+ * on web, a full-page redirect (Supabase's client picks the session up from
+ * the URL when the page reloads at `redirectTo`); on native, an in-app auth
+ * session whose returned code is exchanged for a session here.
+ */
+async function runOAuthFlow(set: (partial: Partial<UserState>) => void, start: OAuthStart): Promise<boolean> {
+  set({ isAuthenticating: true, authError: null });
+  try {
+    const redirectTo = Linking.createURL('auth/callback');
+
+    if (Platform.OS === 'web') {
+      const { data, error } = await start({ redirectTo, skipBrowserRedirect: false });
+      if (error) throw error;
+      if (data?.url) window.location.href = data.url;
+      return true;
+    }
+
+    const { data, error } = await start({ redirectTo, skipBrowserRedirect: true });
+    if (error) throw error;
+    if (!data?.url) throw new Error('The sign-in provider did not return a URL.');
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    if (result.type !== 'success' || !result.url) {
+      // User cancelled/dismissed the provider's screen — not an error.
+      set({ isAuthenticating: false });
+      return false;
+    }
+
+    const code = new URL(result.url).searchParams.get('code');
+    if (!code) throw new Error('No authorization code was returned.');
+
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+    if (exchangeError) throw exchangeError;
+
+    set({ isAuthenticating: false });
+    return true;
+  } catch (error) {
+    set({ isAuthenticating: false, authError: friendlyAuthError(error) });
+    return false;
+  }
 }
 
 /** updateUser() only writes auth.users' metadata — the profiles row (where
@@ -124,50 +186,24 @@ export const useUserStore = create<UserState>()(
 
       verifyPhoneOtp: (phone, token) => runAuthAction(set, () => supabase.auth.verifyOtp({ phone, token, type: 'sms' })),
 
-      signInWithOAuth: async (provider) => {
-        set({ isAuthenticating: true, authError: null });
-        try {
-          const redirectTo = Linking.createURL('auth/callback');
+      signInWithOAuth: (provider) =>
+        runOAuthFlow(set, (options) => supabase.auth.signInWithOAuth({ provider, options })),
 
-          if (Platform.OS === 'web') {
-            // Full-page redirect; Supabase's client picks the session up
-            // from the URL when the page reloads at `redirectTo`.
-            const { data, error } = await supabase.auth.signInWithOAuth({
-              provider,
-              options: { redirectTo },
-            });
-            if (error) throw error;
-            if (data?.url) window.location.href = data.url;
-            return true;
-          }
+      // Requires "Allow manual linking" in the Supabase project's auth
+      // settings; without it the server refuses and the error shows inline.
+      linkOAuthIdentity: (provider) => runOAuthFlow(set, (options) => supabase.auth.linkIdentity({ provider, options })),
 
-          const { data, error } = await supabase.auth.signInWithOAuth({
-            provider,
-            options: { redirectTo, skipBrowserRedirect: true },
-          });
-          if (error) throw error;
-          if (!data?.url) throw new Error('The sign-in provider did not return a URL.');
+      // A phone *change* on the current user: the code goes to the new
+      // number and is verified with type 'phone_change' (not 'sms', which is
+      // for signing in). `channel` isn't in supabase-js's UserAttributes type
+      // but is forwarded as-is in the PUT /user body. Not yet confirmed that
+      // the auth server honours it for phone changes — if it doesn't, the code
+      // arrives by SMS instead. Check once a WhatsApp sender is configured.
+      linkPhoneOtp: (phone) =>
+        runAuthAction(set, () => supabase.auth.updateUser({ phone, channel: 'whatsapp' } as UserAttributes)),
 
-          const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-          if (result.type !== 'success' || !result.url) {
-            // User cancelled/dismissed the provider's screen — not an error.
-            set({ isAuthenticating: false });
-            return false;
-          }
-
-          const code = new URL(result.url).searchParams.get('code');
-          if (!code) throw new Error('No authorization code was returned.');
-
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) throw exchangeError;
-
-          set({ isAuthenticating: false });
-          return true;
-        } catch (error) {
-          set({ isAuthenticating: false, authError: friendlyAuthError(error) });
-          return false;
-        }
-      },
+      verifyLinkedPhoneOtp: (phone, token) =>
+        runAuthAction(set, () => supabase.auth.verifyOtp({ phone, token, type: 'phone_change' })),
 
       signOut: async () => {
         await supabase.auth.signOut();

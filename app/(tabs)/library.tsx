@@ -10,6 +10,7 @@ import { PosterArt, PosterCard } from '@/components/media';
 import { useSeries, useEpisodes } from '@/services/content';
 import { useLibraryStore } from '@/store';
 import { useContinueWatching } from '@/hooks/useContinueWatching';
+import { usePosterGridCardWidth } from '@/hooks/usePosterGridCardWidth';
 import { formatRelativeDate } from '@/utils/format';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { Series } from '@/types';
@@ -22,9 +23,10 @@ export default function LibraryScreen() {
   const favoriteSeriesIds = useLibraryStore((s) => s.favoriteSeriesIds);
   const unlockedEpisodeIds = useLibraryStore((s) => s.unlockedEpisodeIds);
   const history = useLibraryStore((s) => s.history);
-  const removeFavorite = useLibraryStore((s) => s.removeFavorite);
+  const toggleFavorite = useLibraryStore((s) => s.toggleFavorite);
   const removeHistoryEntry = useLibraryStore((s) => s.removeHistoryEntry);
   const clearHistory = useLibraryStore((s) => s.clearHistory);
+  const gridCardWidth = usePosterGridCardWidth();
 
   const seriesById = useMemo(() => new Map(allSeries.map((s) => [s.id, s])), [allSeries]);
   const episodeById = useMemo(() => new Map(allEpisodes.map((e) => [e.id, e])), [allEpisodes]);
@@ -89,18 +91,22 @@ export default function LibraryScreen() {
         )}
 
         {favoriteSeries.length > 0 && (
-          <Section title={t('library.favourites')}>
-            {favoriteSeries.map((series) => (
-              <RowItem
-                key={series.id}
-                series={series}
-                title={series.title}
-                subtitle={`${series.genres.join(' · ')}`}
-                onPress={() => router.push(`/series/${series.id}`)}
-                onRemove={() => removeFavorite(series.id)}
-                removeLabel="Remove favourite"
-              />
-            ))}
+          <Section title={t('series.myList')}>
+            {/* Netflix's My List: a poster grid. The ✓ on each poster removes it. */}
+            <View style={styles.grid}>
+              {favoriteSeries.map((series) => (
+                <PosterCard
+                  key={series.id}
+                  series={series}
+                  width={gridCardWidth}
+                  height={Math.round(gridCardWidth * 1.5)}
+                  showRating={false}
+                  isFavorite
+                  onToggleFavorite={() => toggleFavorite(series.id)}
+                  onPress={() => router.push(`/series/${series.id}`)}
+                />
+              ))}
+            </View>
           </Section>
         )}
 
@@ -219,6 +225,7 @@ const styles = StyleSheet.create({
   sectionTitle: { ...typography.h3, color: colors.textPrimary },
   actionText: { ...typography.bodyMedium, color: colors.accent },
   railContent: { paddingRight: spacing.lg },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.sm, rowGap: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   rowPressable: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   rowThumb: { width: 48, height: 68, borderRadius: radius.sm, overflow: 'hidden' },

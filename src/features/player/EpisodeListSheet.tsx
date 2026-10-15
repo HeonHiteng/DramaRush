@@ -49,6 +49,6 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.textPrimary },
   subtitle: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.sm },
   list: { marginTop: spacing.xs },
-  rowWrap: { borderRadius: 12 },
-  rowWrapActive: { backgroundColor: colors.surfaceRaised },
+  rowWrap: { borderRadius: 12, borderLeftWidth: 3, borderLeftColor: 'transparent' },
+  rowWrapActive: { backgroundColor: colors.surfaceRaised, borderLeftColor: colors.accent },
 });

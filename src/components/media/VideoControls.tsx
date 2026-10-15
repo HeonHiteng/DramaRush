@@ -23,6 +23,8 @@ export interface VideoControlsProps {
   playbackSpeed: number;
   isMuted: boolean;
   nextCountdown: number | null;
+  hasNext: boolean;
+  onNextEpisode: () => void;
   onTogglePlay: () => void;
   onClose: () => void;
   onToggleFavorite: () => void;
@@ -50,6 +52,8 @@ export function VideoControls({
   playbackSpeed,
   isMuted,
   nextCountdown,
+  hasNext,
+  onNextEpisode,
   onTogglePlay,
   onClose,
   onToggleFavorite,
@@ -63,7 +67,13 @@ export function VideoControls({
 }: VideoControlsProps) {
   const insets = useSafeAreaInsets();
   const progress = durationSec > 0 ? positionSec / durationSec : 0;
+  const canSkip = durationSec > 0;
   const { t } = useTranslation();
+
+  const skipBy = (seconds: number) => {
+    if (!canSkip) return;
+    onSeek(Math.max(0, Math.min(1, (positionSec + seconds) / durationSec)));
+  };
 
   return (
     <View style={[StyleSheet.absoluteFill, styles.boxNone]}>
@@ -73,11 +83,22 @@ export function VideoControls({
         </View>
       )}
 
-      {!isPlaying && !buffering && visible && (
-        <View style={[styles.centerPlayWrap, styles.eventsNone]}>
-          <View style={styles.centerPlayCircle}>
-            <Ionicons name="play" size={30} color={colors.white} />
-          </View>
+      {/* Netflix's center controls. The play/pause button here is the only
+          way to pause in portrait: tapping elsewhere just shows/hides the
+          controls (PlayerPage's full-screen Pressable). */}
+      {visible && !buffering && (
+        <View style={[styles.centerControls, styles.boxNone]}>
+          {canSkip && <SkipButton direction="back" label={t('player.skipBack')} onPress={() => skipBy(-10)} />}
+          <Pressable
+            onPress={onTogglePlay}
+            hitSlop={8}
+            style={styles.centerPlayCircle}
+            accessibilityRole="button"
+            accessibilityLabel={isPlaying ? t('player.pauseVideo') : t('player.playVideo')}
+          >
+            <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color={colors.white} />
+          </Pressable>
+          {canSkip && <SkipButton direction="forward" label={t('player.skipForward')} onPress={() => skipBy(10)} />}
         </View>
       )}
 
@@ -96,25 +117,11 @@ export function VideoControls({
                   {t('player.episodeMeta', { number: episodeNumber, total: totalEpisodes, title: episodeTitle })}
                 </Text>
               </View>
-              <Pressable
-                onPress={onOpenEpisodeList}
-                accessibilityRole="button"
-                accessibilityLabel={t('player.episodeListLabel')}
-                hitSlop={10}
-                style={styles.iconButton}
-              >
-                <Ionicons name="list" size={22} color={colors.white} />
-              </Pressable>
             </View>
           </LinearGradient>
 
           <View style={[styles.sideRail, { top: insets.top + 90 }]}>
-            <SideAction
-              icon={isFavorite ? 'heart' : 'heart-outline'}
-              color={isFavorite ? colors.accent : colors.white}
-              label={t('player.favorite')}
-              onPress={onToggleFavorite}
-            />
+            <SideAction icon={isFavorite ? 'checkmark' : 'add'} label={t('series.myList')} onPress={onToggleFavorite} />
             <SideAction icon="share-social" label={t('player.share')} onPress={onShare} />
             <SideAction
               icon="chatbox-ellipses"
@@ -137,10 +144,14 @@ export function VideoControls({
               </View>
               <Text style={styles.time}>{formatDuration(durationSec)}</Text>
             </View>
+            <View style={styles.bottomActions}>
+              <BottomAction icon="layers-outline" label={t('series.episodes')} accessibilityLabel={t('player.episodeListLabel')} onPress={onOpenEpisodeList} />
+              {hasNext && <BottomAction icon="play-skip-forward" label={t('player.nextEpisode')} onPress={onNextEpisode} />}
+            </View>
           </LinearGradient>
 
           {nextCountdown !== null && (
-            <View style={[styles.countdownWrap, { bottom: insets.bottom + 70 }]}>
+            <View style={[styles.countdownWrap, { bottom: insets.bottom + 110 }]}>
               <Text style={styles.countdownText}>{t('player.nextEpisodeIn', { seconds: nextCountdown })}</Text>
               <Pressable onPress={onCancelCountdown} style={styles.countdownCancel} accessibilityRole="button" accessibilityLabel={t('player.cancelAutoplay')}>
                 <Text style={styles.countdownCancelText}>{t('common.cancel')}</Text>
@@ -182,6 +193,35 @@ function SideAction({
   );
 }
 
+/** Netflix's ⟲10 / 10⟳ buttons: a circular arrow with "10" in the middle. */
+function SkipButton({ direction, label, onPress }: { direction: 'back' | 'forward'; label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={8} style={styles.skipButton} accessibilityRole="button" accessibilityLabel={label}>
+      <Ionicons name="refresh" size={36} color={colors.white} style={direction === 'back' ? styles.mirrored : undefined} />
+      <Text style={styles.skipText}>10</Text>
+    </Pressable>
+  );
+}
+
+function BottomAction({
+  icon,
+  label,
+  accessibilityLabel,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  accessibilityLabel?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} hitSlop={8} style={styles.bottomAction} accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label}>
+      <Ionicons name={icon} size={18} color={colors.white} />
+      <Text style={styles.bottomActionText}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function SeekBar({ progress, onSeek }: { progress: number; onSeek: (ratio: number) => void }) {
   const widthRef = React.useRef(1);
   const { t } = useTranslation();
@@ -219,15 +259,24 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.25)',
     borderTopColor: colors.white,
   },
-  centerPlayWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  centerControls: {
+    ...StyleSheet.absoluteFill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xl,
+  },
   centerPlayCircle: {
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  skipButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  mirrored: { transform: [{ scaleX: -1 }] },
+  skipText: { position: 'absolute', ...typography.micro, color: colors.white, fontWeight: '700' },
   topScrim: { position: 'absolute', top: 0, left: 0, right: 0, paddingBottom: spacing.lg },
   topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, gap: spacing.sm },
   iconButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
@@ -250,6 +299,9 @@ const styles = StyleSheet.create({
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   time: { ...typography.caption, color: colors.white, minWidth: 36, textAlign: 'center' },
   progressBarWrap: { flex: 1 },
+  bottomActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.xs },
+  bottomAction: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingVertical: spacing.xxs },
+  bottomActionText: { ...typography.bodyMedium, color: colors.white },
   seekTouchArea: { paddingVertical: spacing.sm },
   countdownWrap: {
     position: 'absolute',

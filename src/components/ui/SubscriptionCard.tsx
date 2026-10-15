@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing, typography } from '@/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, gradients, radius, spacing, typography } from '@/theme';
 import type { SubscriptionPlan } from '@/types';
 import { BRAND } from '@/config';
 
@@ -11,6 +12,10 @@ interface SubscriptionCardProps {
   onPress: () => void;
 }
 
+const UNSELECTED_HEADER = ['#3A2E44', '#241C2C'] as const;
+
+/** Netflix's "Choose your plan" card: a coloured header block naming the
+ * plan (lit up and ticked when selected), with the price details below. */
 export function SubscriptionCard({ plan, selected, onPress }: SubscriptionCardProps) {
   return (
     <Pressable
@@ -20,27 +25,38 @@ export function SubscriptionCard({ plan, selected, onPress }: SubscriptionCardPr
       accessibilityLabel={`${plan.title}, ${plan.priceLabel} ${plan.periodLabel}`}
       style={[styles.card, selected && styles.cardSelected]}
     >
-      {plan.bestValue && (
-        <View style={styles.bestValueBadge}>
-          <Text style={styles.bestValueText}>BEST VALUE</Text>
-        </View>
-      )}
-      <View style={styles.radioRow}>
-        <View style={[styles.radio, selected && styles.radioSelected]}>
-          {selected && <View style={styles.radioDot} />}
-        </View>
-        <Text style={styles.title}>{plan.title}</Text>
-      </View>
-      <View style={styles.priceRow}>
-        <Text style={styles.price}>{plan.priceLabel}</Text>
-        <Text style={styles.period}>{plan.periodLabel}</Text>
-      </View>
-      {plan.monthlyEquivalentLabel && <Text style={styles.equivalent}>{plan.monthlyEquivalentLabel}</Text>}
-      <View style={styles.bonusRow}>
-        <Ionicons name="sparkles" size={13} color={colors.gold} />
-        <Text style={styles.bonusText}>
-          +{plan.bonusCoins} bonus {BRAND.currency.coinNamePlural.toLowerCase()}
+      <LinearGradient
+        colors={selected ? gradients.coralGlow : UNSELECTED_HEADER}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <Text style={styles.title} numberOfLines={2}>
+          {plan.title}
         </Text>
+        {plan.bestValue && (
+          <View style={styles.bestValueBadge}>
+            <Text style={styles.bestValueText}>BEST VALUE</Text>
+          </View>
+        )}
+        {selected && (
+          <View style={styles.check}>
+            <Ionicons name="checkmark" size={14} color={colors.accent} />
+          </View>
+        )}
+      </LinearGradient>
+      <View style={styles.body}>
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>{plan.priceLabel}</Text>
+          <Text style={styles.period}>{plan.periodLabel}</Text>
+        </View>
+        {plan.monthlyEquivalentLabel && <Text style={styles.equivalent}>{plan.monthlyEquivalentLabel}</Text>}
+        <View style={styles.bonusRow}>
+          <Ionicons name="sparkles" size={13} color={colors.gold} />
+          <Text style={styles.bonusText}>
+            +{plan.bonusCoins} bonus {BRAND.currency.coinNamePlural.toLowerCase()}
+          </Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -53,37 +69,35 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1.5,
     borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.xs,
+    overflow: 'hidden',
   },
-  cardSelected: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
+  cardSelected: { borderColor: colors.accent },
+  header: { padding: spacing.md, paddingRight: spacing.xl, minHeight: 84, gap: spacing.xxs },
+  title: { ...typography.bodyMedium, color: colors.white, fontWeight: '700' },
   bestValueBadge: {
-    position: 'absolute',
-    top: -10,
-    alignSelf: 'center',
+    alignSelf: 'flex-start',
     backgroundColor: colors.gold,
     paddingHorizontal: spacing.xs,
     paddingVertical: 2,
     borderRadius: radius.sm,
   },
   bestValueText: { ...typography.micro, color: colors.textInverse },
-  radioRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
-  radio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: colors.textTertiary,
+  check: {
+    position: 'absolute',
+    top: spacing.xs,
+    right: spacing.xs,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioSelected: { borderColor: colors.accent },
-  radioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.accent },
-  title: { ...typography.bodyMedium, color: colors.textPrimary, flexShrink: 1 },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  body: { padding: spacing.md, gap: spacing.xxs },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 4 },
   price: { ...typography.h2, color: colors.textPrimary },
   period: { ...typography.caption, color: colors.textTertiary },
   equivalent: { ...typography.caption, color: colors.success },
   bonusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.xxs },
-  bonusText: { ...typography.caption, color: colors.gold },
+  bonusText: { ...typography.caption, color: colors.gold, flexShrink: 1 },
 });
