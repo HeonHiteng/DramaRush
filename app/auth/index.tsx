@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -137,9 +137,13 @@ export default function AuthScreen() {
     >
       <LinearGradient colors={gradients.splash} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.logoMark}>
-            <Text style={styles.logoGlyph}>{BRAND.name.charAt(0)}</Text>
-          </View>
+          <Image
+            source={require('../../assets/images/logo-mark.png')}
+            style={styles.logoMark}
+            resizeMode="contain"
+            accessibilityRole="image"
+            accessibilityLabel={BRAND.name}
+          />
           <Text style={styles.title}>{copy.title}</Text>
           <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
@@ -416,16 +420,7 @@ function PhoneAuthForm({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  logoMark: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  logoGlyph: { fontSize: 30, fontWeight: '800', color: colors.white },
+  logoMark: { width: 72, height: 72, marginBottom: spacing.lg },
   title: { ...typography.h1, color: colors.textPrimary, textAlign: 'center' },
   subtitle: {
     ...typography.body,

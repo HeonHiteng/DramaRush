@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -41,7 +41,7 @@ export default function HomeScreen() {
     return (
       <Screen>
         <View style={styles.headerRow}>
-          <Text style={styles.brand}>{BRAND.name}</Text>
+          <BrandMark />
         </View>
         <SkeletonBlock height={340} borderRadius={radius.xxl} style={styles.heroSkeleton} />
         <PosterRailSkeleton />
@@ -61,7 +61,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.headerRow}>
-          <Text style={styles.brand}>{BRAND.name}</Text>
+          <BrandMark />
           <Pressable
             onPress={() => router.push('/wallet')}
             style={styles.walletShortcut}
@@ -116,6 +116,15 @@ export default function HomeScreen() {
   );
 }
 
+function BrandMark() {
+  return (
+    <View style={styles.brandRow} accessibilityRole="header" accessibilityLabel={BRAND.name}>
+      <Image source={require('../../assets/images/logo-mark.png')} style={styles.brandLogo} resizeMode="contain" />
+      <Text style={styles.brand}>{BRAND.name}</Text>
+    </View>
+  );
+}
+
 function MembershipBanner() {
   const { t } = useTranslation();
   return (
@@ -152,6 +161,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
   },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  brandLogo: { width: 28, height: 28 },
   brand: { ...typography.h2, color: colors.textPrimary },
   walletShortcut: {
     width: 38,

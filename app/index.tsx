@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect } from 'expo-router';
 import Animated, {
@@ -15,6 +15,8 @@ import { useUserStore } from '@/store';
 import { useAppEntryRedirect } from '@/hooks/useAppEntryRedirect';
 
 const MIN_SPLASH_MS = 1400;
+// The full logo already includes the "KBbox" wordmark.
+const LOGO_FULL = require('../assets/images/logo-full.png');
 
 export default function SplashScreen() {
   const hasHydrated = useUserStore((s) => s.hasHydrated);
@@ -44,10 +46,13 @@ export default function SplashScreen() {
 
   return (
     <LinearGradient colors={gradients.splash} style={styles.container}>
-      <Animated.View style={[styles.logoMark, logoStyle]}>
-        <Text style={styles.logoGlyph}>{BRAND.name.charAt(0)}</Text>
-      </Animated.View>
-      <Animated.Text style={[styles.brandName, logoStyle]}>{BRAND.name}</Animated.Text>
+      <Animated.Image
+        source={LOGO_FULL}
+        style={[styles.logo, logoStyle]}
+        resizeMode="contain"
+        accessibilityRole="image"
+        accessibilityLabel={BRAND.name}
+      />
       <Animated.Text style={[styles.tagline, taglineStyle]}>{BRAND.tagline}</Animated.Text>
     </LinearGradient>
   );
@@ -55,16 +60,7 @@ export default function SplashScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  logoMark: {
-    width: 84,
-    height: 84,
-    borderRadius: 24,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  logoGlyph: { fontSize: 40, fontWeight: '800', color: colors.white },
-  brandName: { ...typography.display, color: colors.textPrimary, marginBottom: 8 },
+  // 480x616 source image.
+  logo: { width: 150, height: 192, marginBottom: 20 },
   tagline: { ...typography.body, color: colors.textTertiary },
 });
