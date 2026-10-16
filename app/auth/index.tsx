@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -11,6 +11,8 @@ import { AppButton } from '@/components/ui/AppButton';
 import { useUserStore } from '@/store';
 import { BRAND, DEFAULT_MEMBER_NAME } from '@/config';
 import { useTranslation } from '@/i18n/useTranslation';
+import { OptionPickerModal } from '@/components/ui/OptionPickerModal';
+import { composePhone, DEFAULT_PHONE_COUNTRY, formatPhone, looksComplete, PHONE_COUNTRIES, type PhoneCountry } from '@/utils/phone';
 
 const emailSchema = z.object({
   name: z.string().trim().optional(),
@@ -67,7 +69,14 @@ export default function AuthScreen() {
   const [showPhoneForm, setShowPhoneForm] = useState(false);
   const [phoneStep, setPhoneStep] = useState<'phone' | 'otp'>('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState<PhoneCountry>(DEFAULT_PHONE_COUNTRY);
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
   const [otpCode, setOtpCode] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
+  // The phone form sits at the bottom of the page: once the keyboard is up,
+  // scroll so the field (and its button) stay visible above it.
+  const revealForm = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250);
+  const fullPhone = composePhone(phoneCountry, phoneNumber);
 
   const {
     control,
@@ -99,14 +108,14 @@ export default function AuthScreen() {
     // Upgrading a guest attaches the number to their current account;
     // otherwise it's an ordinary sign-in.
     const sendCode = isUpgrade ? linkPhoneOtp : signInWithPhoneOtp;
-    const ok = await sendCode(phoneNumber.trim());
+    const ok = await sendCode(fullPhone);
     setPending(null);
     if (ok) setPhoneStep('otp');
   };
 
   const handleVerifyCode = () => {
     const verify = isUpgrade ? verifyLinkedPhoneOtp : verifyPhoneOtp;
-    runSignIn('whatsapp', () => verify(phoneNumber.trim(), otpCode.trim()));
+    runSignIn('whatsapp', () => verify(fullPhone, otpCode.trim()));
   };
 
   const handleGoogle = () =>
@@ -133,10 +142,12 @@ export default function AuthScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      // Android draws edge-to-edge, so the window no longer resizes for the
+      // keyboard by itself: pad on both platforms.
+      behavior={Platform.OS === 'web' ? undefined : 'padding'}
     >
       <LinearGradient colors={gradients.splash} style={styles.flex}>
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Image
             source={require('../../assets/images/logo-mark.png')}
             style={styles.logoMark}
@@ -196,7 +207,10 @@ export default function AuthScreen() {
             {!showPhoneForm ? (
               <AppButton
                 label={t('auth.continueWithWhatsApp')}
-                onPress={() => setShowPhoneForm(true)}
+                onPress={() => {
+                  setShowPhoneForm(true);
+                  revealForm();
+                }}
                 variant="secondary"
                 fullWidth
                 disabled={isAuthenticating}
@@ -207,6 +221,10 @@ export default function AuthScreen() {
                 step={phoneStep}
                 phoneNumber={phoneNumber}
                 onPhoneNumberChange={setPhoneNumber}
+                country={phoneCountry}
+                onPickCountry={() => setCountryPickerVisible(true)}
+                fullPhone={fullPhone}
+                onInputFocus={revealForm}
                 otpCode={otpCode}
                 onOtpCodeChange={setOtpCode}
                 onSendCode={handleSendCode}
@@ -219,12 +237,20 @@ export default function AuthScreen() {
           </View>
 
           {copy.showLegalDisclosure && (
-            <Text style={styles.legal}>
-              Google sign-in requires one-time provider setup in the backend — see the
-              backend README. Everything else here is a real account.
-            </Text>
+            <Text style={styles.legal}>{t('auth.legalNotice')}</Text>
           )}
         </ScrollView>
+        <OptionPickerModal
+          visible={countryPickerVisible}
+          options={PHONE_COUNTRIES.map((c) => ({ value: c.code, label: `${c.flag}  ${c.name}  +${c.dial}` }))}
+          selected={phoneCountry.code}
+          onSelect={(code) => {
+            setPhoneCountry(PHONE_COUNTRIES.find((c) => c.code === code) ?? DEFAULT_PHONE_COUNTRY);
+            setCountryPickerVisible(false);
+          }}
+          onClose={() => setCountryPickerVisible(false)}
+          closeLabel={t('common.close')}
+        />
       </LinearGradient>
     </KeyboardAvoidingView>
   );
@@ -338,6 +364,11 @@ interface PhoneAuthFormProps {
   step: 'phone' | 'otp';
   phoneNumber: string;
   onPhoneNumberChange: (value: string) => void;
+  country: PhoneCountry;
+  onPickCountry: () => void;
+  /** The international number that will be used, e.g. +60122339276. */
+  fullPhone: string;
+  onInputFocus: () => void;
   otpCode: string;
   onOtpCodeChange: (value: string) => void;
   onSendCode: () => void;
@@ -355,6 +386,10 @@ function PhoneAuthForm({
   step,
   phoneNumber,
   onPhoneNumberChange,
+  country,
+  onPickCountry,
+  fullPhone,
+  onInputFocus,
   otpCode,
   onOtpCodeChange,
   onSendCode,
@@ -368,17 +403,30 @@ function PhoneAuthForm({
   if (step === 'phone') {
     return (
       <View style={styles.emailForm}>
-        <View style={styles.fieldWrap}>
+        <View style={styles.phoneRow}>
+          <Pressable
+            style={styles.countryButton}
+            onPress={onPickCountry}
+            accessibilityRole="button"
+            accessibilityLabel={`${country.name} +${country.dial}`}
+          >
+            <Text style={styles.countryText}>
+              {country.flag} +{country.dial}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color={colors.textTertiary} />
+          </Pressable>
           <TextInput
-            style={styles.input}
-            placeholder={t('auth.phonePlaceholder')}
+            style={[styles.input, styles.phoneInput]}
+            placeholder={country.example}
             placeholderTextColor={colors.textTertiary}
             value={phoneNumber}
             onChangeText={onPhoneNumberChange}
+            onFocus={onInputFocus}
             accessibilityLabel="Phone number"
             autoCapitalize="none"
             keyboardType="phone-pad"
             textContentType="telephoneNumber"
+            autoComplete="tel"
           />
         </View>
         {error && <Text style={styles.errorText}>{error}</Text>}
@@ -388,7 +436,7 @@ function PhoneAuthForm({
           variant="primary"
           fullWidth
           loading={submitting}
-          disabled={phoneNumber.trim().length < 8}
+          disabled={!looksComplete(country, phoneNumber)}
         />
       </View>
     );
@@ -396,7 +444,7 @@ function PhoneAuthForm({
 
   return (
     <View style={styles.emailForm}>
-      <Text style={styles.otpSubtitle}>{t('auth.otpSubtitle', { phone: phoneNumber.trim() })}</Text>
+      <Text style={styles.otpSubtitle}>{t('auth.otpSubtitle', { phone: formatPhone(fullPhone) })}</Text>
       <View style={styles.fieldWrap}>
         <TextInput
           style={styles.input}
@@ -406,6 +454,7 @@ function PhoneAuthForm({
           onChangeText={onOtpCodeChange}
           accessibilityLabel="Verification code"
           keyboardType="number-pad"
+          onFocus={onInputFocus}
           textContentType="oneTimeCode"
           maxLength={6}
         />
@@ -444,6 +493,19 @@ const styles = StyleSheet.create({
   modeToggleRow: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.xs },
   modeToggleButton: { flex: 1 },
   fieldWrap: { gap: 4 },
+  phoneRow: { flexDirection: 'row', gap: spacing.xs },
+  countryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm,
+  },
+  countryText: { ...typography.body, color: colors.textPrimary },
+  phoneInput: { flex: 1 },
   input: {
     backgroundColor: colors.surfaceRaised,
     borderRadius: radius.md,

@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
-import type { UserAttributes } from '@supabase/supabase-js';
 import type { MockUser } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { DEFAULT_GUEST_NAME } from '@/config';
@@ -39,6 +38,8 @@ interface UserState {
   linkOAuthIdentity: (provider: 'google') => Promise<boolean>;
   linkPhoneOtp: (phone: string) => Promise<boolean>;
   verifyLinkedPhoneOtp: (phone: string, token: string) => Promise<boolean>;
+  /** Renames the signed-in user (1–40 characters). Resolves to an error message, or null on success. */
+  updateDisplayName: (name: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   clearAuthError: () => void;
   /** Called by AuthListener whenever Supabase's session changes. */
@@ -52,6 +53,12 @@ function friendlyAuthError(error: unknown): string {
   // reason never reaches us. Show something readable instead of "{}".
   if (error instanceof Error && error.message && error.message !== '{}') return error.message;
   return 'Something went wrong signing in. Please try again.';
+}
+
+/** "+60 12-345 6789" -> "+60123456789": Supabase rejects spaces and dashes in phone numbers. */
+export function normalizePhone(phone: string): string {
+  const trimmed = phone.trim();
+  return (trimmed.startsWith('+') ? '+' : '') + trimmed.replace(/\D/g, '');
 }
 
 /** Every sign-in/sign-up action below (except OAuth, whose multi-step,
@@ -131,7 +138,7 @@ async function syncGuestDisplayName(set: (fn: (state: UserState) => Partial<User
 
 export const useUserStore = create<UserState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       hasOnboarded: false,
       isAuthenticating: false,
@@ -178,13 +185,25 @@ export const useUserStore = create<UserState>()(
         return ok;
       },
 
-      // WhatsApp is just the phone number's delivery channel for Supabase's
-      // existing phone-OTP auth — verification itself is still `type: 'sms'`
-      // regardless of which channel sent the code.
-      signInWithPhoneOtp: (phone) =>
-        runAuthAction(set, () => supabase.auth.signInWithOtp({ phone, options: { channel: 'whatsapp' } })),
+      // Supabase generates the code; its "Send SMS" auth hook hands it to our
+      // shared otp-hub service, which delivers it over WhatsApp (Meta Cloud
+      // API). So: no `channel` option — 'whatsapp' would make Supabase look
+      // for a Twilio WhatsApp sender — and verification stays `type: 'sms'`.
+      signInWithPhoneOtp: (phone) => runAuthAction(set, () => supabase.auth.signInWithOtp({ phone: normalizePhone(phone) })),
 
-      verifyPhoneOtp: (phone, token) => runAuthAction(set, () => supabase.auth.verifyOtp({ phone, token, type: 'sms' })),
+      verifyPhoneOtp: (phone, token) =>
+        runAuthAction(set, () => supabase.auth.verifyOtp({ phone: normalizePhone(phone), token, type: 'sms' })),
+
+      updateDisplayName: async (name) => {
+        const user = get().user;
+        const trimmed = name.trim();
+        if (!user) return 'Not signed in.';
+        if (trimmed.length < 1 || trimmed.length > 40) return 'Name must be 1 to 40 characters.';
+        const { error } = await supabase.from('profiles').update({ display_name: trimmed }).eq('user_id', user.id);
+        if (error) return friendlyAuthError(error);
+        set({ user: { ...user, displayName: trimmed } });
+        return null;
+      },
 
       signInWithOAuth: (provider) =>
         runOAuthFlow(set, (options) => supabase.auth.signInWithOAuth({ provider, options })),
@@ -195,15 +214,14 @@ export const useUserStore = create<UserState>()(
 
       // A phone *change* on the current user: the code goes to the new
       // number and is verified with type 'phone_change' (not 'sms', which is
-      // for signing in). `channel` isn't in supabase-js's UserAttributes type
-      // but is forwarded as-is in the PUT /user body. Not yet confirmed that
-      // the auth server honours it for phone changes — if it doesn't, the code
-      // arrives by SMS instead. Check once a WhatsApp sender is configured.
-      linkPhoneOtp: (phone) =>
-        runAuthAction(set, () => supabase.auth.updateUser({ phone, channel: 'whatsapp' } as UserAttributes)),
+      // for signing in). Like signInWithPhoneOtp it goes out through the Send
+      // SMS hook (otp-hub delivers it on WhatsApp), so no `channel` option.
+      linkPhoneOtp: (phone) => runAuthAction(set, () => supabase.auth.updateUser({ phone: normalizePhone(phone) })),
 
       verifyLinkedPhoneOtp: (phone, token) =>
-        runAuthAction(set, () => supabase.auth.verifyOtp({ phone, token, type: 'phone_change' })),
+        runAuthAction(set, () =>
+          supabase.auth.verifyOtp({ phone: normalizePhone(phone), token, type: 'phone_change' }),
+        ),
 
       signOut: async () => {
         await supabase.auth.signOut();
