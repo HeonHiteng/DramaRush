@@ -2,7 +2,19 @@ import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import type { CastMember, Episode, EpisodeAccessType, Genre, Series, SeriesStatus } from '@/types';
+import { useTranslation } from '@/i18n/useTranslation';
+import type {
+  BillingPeriod,
+  CastMember,
+  CoinPackage,
+  Episode,
+  EpisodeAccessType,
+  Genre,
+  PublicConfig,
+  Series,
+  SeriesStatus,
+  SubscriptionPlan,
+} from '@/types';
 
 interface SeriesRow {
   id: string;
@@ -114,6 +126,158 @@ export function useEpisodeById(id: string | undefined) {
   const { data: episodes, ...rest } = useEpisodes();
   const item = useMemo(() => (id ? episodes?.find((e) => e.id === id) : undefined), [episodes, id]);
   return { data: item, ...rest };
+}
+
+// --- Wallet catalog & public config ----------------------------------------
+// Coin packages, membership plans and the public app_config switches live in
+// the database (the server decides what a purchase grants), so the app reads
+// them rather than hardcoding prices. Readable by guests and members alike.
+
+const CATALOG_STALE_MS = 5 * 60 * 1000;
+
+/** Used for any public app_config key the server doesn't return. */
+export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
+  simulatedPayments: true,
+  dailyMissionReward: 20,
+  adUnlocksPerDay: 20,
+  welcomeBonusCoins: 150,
+  guestPreviewSeconds: 15,
+  guestPreviewsPerDay: 20,
+};
+
+const CONFIG_KEYS: Record<string, keyof PublicConfig> = {
+  simulated_payments: 'simulatedPayments',
+  daily_mission_reward: 'dailyMissionReward',
+  ad_unlocks_per_day: 'adUnlocksPerDay',
+  welcome_bonus_coins: 'welcomeBonusCoins',
+  guest_preview_seconds: 'guestPreviewSeconds',
+  guest_previews_per_day: 'guestPreviewsPerDay',
+};
+
+/** app_config.value is jsonb: true / 20, or occasionally the same as a JSON string. */
+function configValue(raw: unknown, fallback: boolean | number): boolean | number {
+  if (typeof fallback === 'boolean') {
+    if (typeof raw === 'boolean') return raw;
+    if (raw === 'true' || raw === 'false') return raw === 'true';
+    return fallback;
+  }
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+export function mapPublicConfig(rows: { key: string; value: unknown }[]): PublicConfig {
+  const config: PublicConfig = { ...DEFAULT_PUBLIC_CONFIG };
+  for (const row of rows) {
+    const field = CONFIG_KEYS[row.key];
+    if (field) (config as unknown as Record<string, boolean | number>)[field] = configValue(row.value, DEFAULT_PUBLIC_CONFIG[field]);
+  }
+  return config;
+}
+
+export async function fetchPublicConfig(): Promise<PublicConfig> {
+  const { data, error } = await supabase.from('app_config').select('key, value').eq('is_public', true);
+  if (error) throw error;
+  return mapPublicConfig((data ?? []) as { key: string; value: unknown }[]);
+}
+
+/** Public server switches (simulated payments, daily reward, preview length, …). */
+export function usePublicConfig() {
+  return useQuery({ queryKey: ['public-config'], queryFn: fetchPublicConfig, staleTime: CATALOG_STALE_MS });
+}
+
+function formatUsd(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
+
+interface CoinPackageRow {
+  id: string;
+  coins: number;
+  bonus_coins: number;
+  price_usd: number | string;
+  badge: string | null;
+}
+
+export function mapCoinPackage(row: CoinPackageRow): CoinPackage {
+  const price = Number(row.price_usd);
+  return {
+    id: row.id,
+    coins: row.coins,
+    bonusCoins: row.bonus_coins,
+    priceLabel: formatUsd(price),
+    priceValue: price,
+    ...(row.badge ? { badge: row.badge } : null),
+  };
+}
+
+export async function fetchCoinPackages(): Promise<CoinPackage[]> {
+  const { data, error } = await supabase
+    .from('coin_packages')
+    .select('id, coins, bonus_coins, price_usd, badge, sort_order')
+    .eq('active', true)
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as CoinPackageRow[]).map(mapCoinPackage);
+}
+
+export function useCoinPackages() {
+  return useQuery({ queryKey: ['coin-packages'], queryFn: fetchCoinPackages, staleTime: CATALOG_STALE_MS });
+}
+
+/**
+ * subscription_plans.billing_period is a Postgres interval; PostgREST sends
+ * it as text — '1 mon' / '1 year' (IntervalStyle postgres) or 'P1M' / 'P1Y'
+ * (iso_8601). Anything of a year or more counts as annual.
+ */
+export function billingPeriodOf(interval: string): BillingPeriod {
+  const text = interval.trim().toLowerCase();
+  if (/\byears?\b/.test(text) || /^p\d+y/.test(text)) return 'annual';
+  const days = /(\d+)\s*days?/.exec(text) ?? /^p(\d+)d/.exec(text);
+  if (days && Number(days[1]) >= 360) return 'annual';
+  return 'monthly';
+}
+
+export interface SubscriptionPlanRow {
+  id: string;
+  title: string;
+  price_usd: number | string;
+  billing_period: string;
+  bonus_coins: number;
+}
+
+type Translate = ReturnType<typeof useTranslation>['t'];
+
+export function mapSubscriptionPlan(row: SubscriptionPlanRow, t: Translate): SubscriptionPlan {
+  const price = Number(row.price_usd);
+  const period = billingPeriodOf(row.billing_period);
+  return {
+    id: row.id,
+    period,
+    title: row.title,
+    priceLabel: formatUsd(price),
+    periodLabel: period === 'annual' ? t('subscription.perYear') : t('subscription.perMonth'),
+    bonusCoins: row.bonus_coins,
+    ...(period === 'annual'
+      ? { bestValue: true, monthlyEquivalentLabel: t('subscription.monthlyEquivalent', { price: formatUsd(price / 12) }) }
+      : null),
+  };
+}
+
+export async function fetchSubscriptionPlans(): Promise<SubscriptionPlanRow[]> {
+  const { data, error } = await supabase
+    .from('subscription_plans')
+    .select('id, title, price_usd, billing_period, bonus_coins, sort_order')
+    .eq('active', true)
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as SubscriptionPlanRow[];
+}
+
+/** Membership plans, labelled in the interface language. */
+export function useSubscriptionPlans() {
+  const { t } = useTranslation();
+  const query = useQuery({ queryKey: ['subscription-plans'], queryFn: fetchSubscriptionPlans, staleTime: CATALOG_STALE_MS });
+  const plans = useMemo(() => query.data?.map((row) => mapSubscriptionPlan(row, t)), [query.data, t]);
+  return { ...query, data: plans };
 }
 
 // --- Admin mutations -------------------------------------------------------

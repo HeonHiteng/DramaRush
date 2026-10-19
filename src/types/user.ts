@@ -1,6 +1,6 @@
 export type AuthProvider = 'guest' | 'email' | 'phone' | 'google' | 'apple';
 
-export interface MockUser {
+export interface AppUser {
   id: string;
   displayName: string;
   email?: string;
@@ -14,11 +14,14 @@ export interface MockUser {
   isAdmin: boolean;
 }
 
-export type SubscriptionPlanId = 'monthly' | 'annual';
+/** subscription_plans.id ('monthly' / 'annual' today; the catalog lives in the database). */
+export type SubscriptionPlanId = string;
 
 export interface SubscriptionState {
   isActive: boolean;
   planId: SubscriptionPlanId | null;
   startedAt: string | null;
   renewsAt: string | null;
+  /** Set by cancel_subscription(): access continues until renewsAt. */
+  cancelledAt: string | null;
 }

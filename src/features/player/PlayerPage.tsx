@@ -1,13 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent, useEventListener } from 'expo';
 import { colors, typography } from '@/theme';
 import { VideoControls } from '@/components/media/VideoControls';
+import { AppButton } from '@/components/ui/AppButton';
 import type { Episode } from '@/types';
-import { useLibraryStore, useSettingsStore } from '@/store';
+import { useLibraryStore, useSettingsStore, useSubscriptionStore, useUserStore } from '@/store';
+import { supabase } from '@/lib/supabase';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { TranslationKey } from '@/i18n/translations';
 import { fetchPlayback, isGrantFresh, type PlaybackErrorCode, type PlaybackGrant } from '@/services/playback';
@@ -26,11 +30,19 @@ const HEALTHY_PLAYBACK_SEC = 3;
 const LANDSCAPE_MIN_RATIO = 1.05;
 
 const NOTICE_KEYS: Partial<Record<PlaybackErrorCode, TranslationKey>> = {
+  not_authenticated: 'player.sessionExpired',
+  account_required: 'player.accountRequired',
   unavailable: 'player.videoUnavailable',
   rate_limited: 'player.tryAgainLater',
   blocked: 'player.tryAgainLater',
   budget: 'player.tryAgainLater',
 };
+
+/**
+ * Why the page asks the screen to step in: 'locked' -> the paywall (members),
+ * 'account_required' -> the link-account gate (guests can't unlock anything).
+ */
+export type LockReason = 'locked' | 'account_required';
 
 interface PlayerPageProps {
   episode: Episode;
@@ -47,7 +59,7 @@ interface PlayerPageProps {
   onShare: () => void;
   onOpenEpisodeList: () => void;
   onClose: () => void;
-  onLocked: () => void;
+  onLocked: (reason: LockReason) => void;
   onAutoAdvance: () => void;
   /** The active page entered/left the rotated landscape view (the pager stops swiping meanwhile). */
   onLandscapeChange?: (landscape: boolean) => void;
@@ -73,7 +85,10 @@ export function PlayerPage({
   onLandscapeChange,
 }: PlayerPageProps) {
   const setProgress = useLibraryStore((s) => s.setProgress);
+  const flushProgress = useLibraryStore((s) => s.flushProgress);
   const recordHistory = useLibraryStore((s) => s.recordHistory);
+  const isGuest = useUserStore((s) => s.user?.provider === 'guest');
+  const insets = useSafeAreaInsets();
   const autoplayNextEpisode = useSettingsStore((s) => s.autoplayNextEpisode);
   const defaultSubtitlesEnabled = useSettingsStore((s) => s.subtitlesEnabled);
   const { t } = useTranslation();
@@ -90,6 +105,14 @@ export function PlayerPage({
   const hasResumedRef = useRef(false);
   const hasRecordedHistoryRef = useRef(false);
   const lockedNotifiedRef = useRef(false);
+  /** isActive as of the last activation effect, to notice the page becoming active again. */
+  const wasActiveRef = useRef(false);
+  /** One getSession() + retry per 401 before showing "session expired". */
+  const authRetriedRef = useRef(false);
+  /** A member's not_entitled re-reads unlocks + membership once per activation (another device, expiry). */
+  const entitlementRecheckedRef = useRef(false);
+  /** A guest's preview reached grant.previewSeconds: paused for good, no refetch, no auto-advance. */
+  const [previewEnded, setPreviewEnded] = useState(false);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Signed playback URL from the backend (playback-token). Only requested when
@@ -108,10 +131,12 @@ export function PlayerPage({
   const hlsRef = useRef<HlsAttachment | null>(null);
   const retryAfterErrorRef = useRef<() => void>(() => {});
   const isActiveRef = useRef(isActive);
+  const isGuestRef = useRef(isGuest);
   const onLockedRef = useRef(onLocked);
   const onLandscapeChangeRef = useRef(onLandscapeChange);
   useEffect(() => {
     isActiveRef.current = isActive;
+    isGuestRef.current = isGuest;
     onLockedRef.current = onLocked;
     onLandscapeChangeRef.current = onLandscapeChange;
   });
@@ -126,17 +151,44 @@ export function PlayerPage({
     async (resumeAt: number | null, force: boolean) => {
       if (loadingSourceRef.current) return;
       loadingSourceRef.current = true;
-      const result = await fetchPlayback(episode.id, { force });
+      let result = await fetchPlayback(episode.id, { force });
+      if (!result.ok && result.code === 'not_authenticated' && !authRetriedRef.current) {
+        // Usually an access token that lapsed while the app slept:
+        // getSession() refreshes it. Real sign-outs are AuthListener's job.
+        authRetriedRef.current = true;
+        await supabase.auth.getSession();
+        result = await fetchPlayback(episode.id, { force: true });
+      }
       loadingSourceRef.current = false;
       if (!result.ok) {
         setPlaybackError(result.code);
-        // The server is the authority: if it says locked, show the paywall.
-        if (result.code === 'not_entitled') onLockedRef.current();
+        // The server is the authority. A guest can't unlock anything, so
+        // they get the link-account gate rather than the paywall.
+        if (result.code === 'account_required' || (result.code === 'not_entitled' && isGuestRef.current)) {
+          lockedNotifiedRef.current = true;
+          onLockedRef.current('account_required');
+        } else if (result.code === 'not_entitled') {
+          // We thought this member could watch: the membership may have
+          // expired or the unlock state changed elsewhere. Re-read both
+          // once so the page reflects the server, then open the paywall.
+          if (!entitlementRecheckedRef.current) {
+            entitlementRecheckedRef.current = true;
+            await Promise.all([
+              useLibraryStore.getState().hydrateFromServer(),
+              useSubscriptionStore.getState().hydrateFromServer(),
+            ]);
+          }
+          lockedNotifiedRef.current = true;
+          if (isActiveRef.current) onLockedRef.current('locked');
+        }
         return;
       }
+      authRetriedRef.current = false;
       setPlaybackError(null);
       setGrant(result.grant);
-      pendingSeekRef.current = resumeAt;
+      const { previewSeconds: limit } = result.grant;
+      // A saved position at or past the preview's end would stop it at once.
+      pendingSeekRef.current = limit !== undefined && resumeAt !== null && resumeAt >= limit - 1 ? null : resumeAt;
 
       if (needsHlsJs()) {
         // Browser can't play HLS itself: hls.js feeds the mounted <video>.
@@ -169,7 +221,7 @@ export function PlayerPage({
    * server's rate limit and block the account).
    */
   const retryAfterError = useCallback(() => {
-    if (!isUnlocked) return;
+    if (!isUnlocked || previewEnded) return;
     if (sourceRetriesRef.current < MAX_SOURCE_RETRIES) {
       sourceRetriesRef.current += 1;
       const delayMs = RETRY_BASE_DELAY_MS * 2 ** (sourceRetriesRef.current - 1);
@@ -179,7 +231,7 @@ export function PlayerPage({
     } else {
       setPlaybackError('network_error');
     }
-  }, [isUnlocked, loadSource]);
+  }, [isUnlocked, previewEnded, loadSource]);
 
   useEffect(() => {
     retryAfterErrorRef.current = retryAfterError;
@@ -219,22 +271,35 @@ export function PlayerPage({
 
   useEventListener(player, 'playToEnd', () => {
     if (!hasNext) return;
+    // A guest preview never rolls into the next episode.
+    if (grant?.previewSeconds !== undefined) return;
     if (!autoplayNextEpisode) return;
     setNextCountdown(AUTOPLAY_COUNTDOWN_SEC);
   });
 
   useEffect(() => {
+    // Swiping back to this page is a new chance: the paywall / gate may open
+    // again, and a member's entitlement is re-checked if the server refuses.
+    if (isActive && !wasActiveRef.current) {
+      lockedNotifiedRef.current = false;
+      entitlementRecheckedRef.current = false;
+    }
+    wasActiveRef.current = isActive;
+
     if (!isUnlocked) {
       if (isActive && !lockedNotifiedRef.current) {
         lockedNotifiedRef.current = true;
-        onLocked();
+        onLocked(isGuest ? 'account_required' : 'locked');
       }
       return;
     }
     lockedNotifiedRef.current = false;
 
     if (isActive) {
-      if (!isGrantFresh(grant)) {
+      if (previewEnded) {
+        // The preview is over; don't fetch another token for it.
+        player.pause();
+      } else if (!isGrantFresh(grant)) {
         let resumeAt: number | null = lastPositionRef.current || null;
         if (!hasResumedRef.current) {
           hasResumedRef.current = true;
@@ -254,9 +319,49 @@ export function PlayerPage({
     } else {
       player.pause();
       setNextCountdown(null);
+      flushProgress(episode.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, isUnlocked]);
+
+  // A guest who linked an account while on this page: drop the preview and
+  // load the full episode where they were.
+  useEffect(() => {
+    if (isGuest || grant?.previewSeconds === undefined) return;
+    setPreviewEnded(false);
+    setGrant(null);
+    if (isActiveRef.current && isUnlocked) loadSource(lastPositionRef.current || null, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGuest]);
+
+  // Stop a guest preview at its limit (also catches seeking past it).
+  const previewSeconds = grant?.previewSeconds;
+  useEffect(() => {
+    if (previewSeconds === undefined || previewEnded || !isActive) return;
+    if (currentTime >= previewSeconds) {
+      player.pause();
+      setPreviewEnded(true);
+      setNextCountdown(null);
+      setLandscapeMode(false);
+      flushProgress(episode.id);
+    }
+  }, [currentTime, previewSeconds, previewEnded, isActive, player, flushProgress, episode.id]);
+
+  // Progress goes to the server at most every few seconds; whatever is
+  // pending is written as soon as playback pauses or the app is backgrounded.
+  useEffect(() => {
+    if (!isPlaying) flushProgress(episode.id);
+  }, [isPlaying, flushProgress, episode.id]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') flushProgress(episode.id);
+    });
+    return () => sub.remove();
+  }, [isActive, flushProgress, episode.id]);
+
+  useEffect(() => () => flushProgress(episode.id), [flushProgress, episode.id]);
 
   useEffect(() => {
     if (!isActive || !isUnlocked) return;
@@ -304,6 +409,10 @@ export function PlayerPage({
 
   const togglePlay = () => {
     if (!isUnlocked) return;
+    if (previewEnded) {
+      router.push('/auth?mode=upgrade');
+      return;
+    }
     if (player.playing) {
       player.pause();
       return;
@@ -391,17 +500,23 @@ export function PlayerPage({
           )}
         </View>
       ) : (
-        <LockedPoster episodeNumber={episode.number} episodeTitle={episode.title} lockedTitle={t('player.lockedTitle', { number: episode.number })} />
+        <LockedPoster
+          episodeNumber={episode.number}
+          episodeTitle={episode.title}
+          lockedTitle={t('player.lockedTitle', { number: episode.number })}
+          actionLabel={isGuest ? t('player.lockedLinkAccount') : t('player.lockedUnlock')}
+          onAction={() => onLocked(isGuest ? 'account_required' : 'locked')}
+        />
       )}
 
-      {isUnlocked && playbackError && playbackError !== 'not_entitled' && (
+      {isUnlocked && playbackError && playbackError !== 'not_entitled' && !previewEnded && (
         <View style={[StyleSheet.absoluteFill, styles.noticeWrap, { pointerEvents: 'none' }]}>
           <Ionicons name="time-outline" size={28} color={colors.textTertiary} />
           <Text style={styles.noticeText}>{t(NOTICE_KEYS[playbackError] ?? 'player.loadFailed')}</Text>
         </View>
       )}
 
-      {!landscapeMode && (
+      {isUnlocked && !landscapeMode && (
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={() => setControlsVisible((v) => !v)}
@@ -410,13 +525,13 @@ export function PlayerPage({
         />
       )}
 
-      {isUnlocked && !landscapeMode && subtitlesEnabled && (
+      {isUnlocked && !landscapeMode && !previewEnded && subtitlesEnabled && (
         <View style={[styles.subtitleWrap, { bottom: height * 0.18, pointerEvents: 'none' }]}>
           <Text style={styles.subtitleText}>{t('player.subtitlePlaceholder')}</Text>
         </View>
       )}
 
-      {isUnlocked && !landscapeMode && (
+      {isUnlocked && !landscapeMode && !previewEnded && (
         <VideoControls
           visible={controlsVisible}
           seriesTitle={seriesTitle}
@@ -447,7 +562,32 @@ export function PlayerPage({
         />
       )}
 
-      {isUnlocked && isLandscape && !landscapeMode && grant && !playbackError && (
+      {isUnlocked && previewEnded && (
+        <View style={[StyleSheet.absoluteFill, styles.previewEndedRoot]}>
+          <Pressable
+            style={[styles.previewClose, { top: insets.top + 12 }]}
+            onPress={onClose}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('player.closePlayer')}
+          >
+            <Ionicons name="close" size={22} color={colors.white} />
+          </Pressable>
+          <View style={styles.lockedIconCircle}>
+            <Ionicons name="person-add" size={26} color={colors.gold} />
+          </View>
+          <Text style={styles.lockedTitle}>{t('player.previewEndedTitle')}</Text>
+          <Text style={styles.previewEndedBody}>{t('player.previewEndedBody')}</Text>
+          <AppButton
+            label={t('player.previewEndedAction')}
+            onPress={() => router.push('/auth?mode=upgrade')}
+            variant="primary"
+            style={styles.lockedAction}
+          />
+        </View>
+      )}
+
+      {isUnlocked && isLandscape && !landscapeMode && grant && !playbackError && !previewEnded && (
         <Pressable
           style={[styles.landscapeButton, { top: landscapeButtonTop }]}
           onPress={() => setLandscapeMode(true)}
@@ -462,7 +602,16 @@ export function PlayerPage({
   );
 }
 
-function LockedPoster({ lockedTitle, episodeTitle }: { episodeNumber: number; episodeTitle: string; lockedTitle: string }) {
+interface LockedPosterProps {
+  episodeNumber: number;
+  episodeTitle: string;
+  lockedTitle: string;
+  /** Unlock (member: paywall) or Link account (guest: gate) — a dismissed sheet must not leave a dead end. */
+  actionLabel: string;
+  onAction: () => void;
+}
+
+function LockedPoster({ lockedTitle, episodeTitle, actionLabel, onAction }: LockedPosterProps) {
   return (
     <LinearGradient colors={['#241A2C', '#120E17']} style={styles.lockedRoot}>
       <View style={styles.lockedIconCircle}>
@@ -472,6 +621,7 @@ function LockedPoster({ lockedTitle, episodeTitle }: { episodeNumber: number; ep
       <Text style={styles.lockedSubtitle} numberOfLines={2}>
         {episodeTitle}
       </Text>
+      <AppButton label={actionLabel} onPress={onAction} variant="gold" style={styles.lockedAction} />
     </LinearGradient>
   );
 }
@@ -489,6 +639,19 @@ const styles = StyleSheet.create({
   },
   lockedTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: 6 },
   lockedSubtitle: { ...typography.body, color: colors.textTertiary, textAlign: 'center' },
+  lockedAction: { marginTop: 20, minWidth: 180 },
+  previewEndedRoot: { alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: 'rgba(0,0,0,0.72)' },
+  previewEndedBody: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  previewClose: {
+    position: 'absolute',
+    left: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
   subtitleWrap: { position: 'absolute', left: 24, right: 24, alignItems: 'center' },
   noticeWrap: { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
   centered: { alignItems: 'center', justifyContent: 'center' },

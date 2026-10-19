@@ -25,16 +25,21 @@ export const keyboxStorage: StateStorage = {
 
 export const asyncStorageAdapter = createJSONStorage(() => keyboxStorage);
 
+/** Only what actually lives on the device. Wallet, subscription, library and
+ * search are server data (hydrated by AuthListener), so they have no key. */
 export const STORAGE_KEYS = {
   user: 'keybox/user',
-  wallet: 'keybox/wallet',
-  subscription: 'keybox/subscription',
-  library: 'keybox/library',
-  search: 'keybox/search',
   settings: 'keybox/settings',
+  /** Set just before a web Google-link redirect so /auth/callback, on a fresh
+   * page load with an empty store, knows the round trip was a guest bind. */
+  oauthLink: 'keybox/oauth-link',
 } as const;
+
+/** Keys earlier builds persisted locally before those stores moved to the
+ * server; removed on reset so an old install doesn't keep stale copies. */
+const RETIRED_KEYS = ['wallet', 'subscription', 'library', 'search'].flatMap((name) => [PREFIX + name, LEGACY_PREFIX + name]);
 
 export async function clearAllPrototypeStorage(): Promise<void> {
   const keys = Object.values(STORAGE_KEYS);
-  await AsyncStorage.multiRemove([...keys, ...keys.map((k) => legacyName(k)!)]);
+  await AsyncStorage.multiRemove([...keys, ...keys.map((k) => legacyName(k)!), ...RETIRED_KEYS]);
 }
