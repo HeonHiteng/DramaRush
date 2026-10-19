@@ -54,6 +54,7 @@ change** — only data, playback and security logic, and bug fixes.
 
 ## Still open
 
-Placeholders: bundle id `com.dramarush.prototype`, `supportEmail`/`websiteUrl` in
-`src/config/brand.ts` (waiting for real values). Turnstile captcha on guest sign-in, RevenueCat,
+App ID is `com.kbbox.app` (iOS bundle id + Android package; permanent once published).
+Builds: `eas.json` has `preview` (installable Android .apk) and `production` (Play Store .aab).
+Placeholders: `supportEmail`/`websiteUrl` in `src/config/brand.ts` (waiting for real values). Turnstile captcha on guest sign-in, RevenueCat,
 AdMob server-side verification, Apple/Google sign-in on the new project.
