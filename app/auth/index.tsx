@@ -1,5 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type TextInputProps,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -24,8 +35,7 @@ const RESEND_COOLDOWN_S = 60;
  * that split in one place instead of scattered through the JSX. */
 function getScreenCopy(mode: ScreenMode, t: ReturnType<typeof useTranslation>['t']) {
   return {
-    title:
-      mode === 'link' ? t('auth.upgradeTitle') : mode === 'switch' ? t('auth.signInTitle') : t('auth.welcome', { brand: BRAND.name }),
+    title: mode === 'link' ? t('auth.upgradeTitle') : mode === 'switch' ? t('auth.signInTitle') : t('auth.signIn'),
     subtitle: mode === 'link' ? t('auth.upgradeSubtitle') : mode === 'switch' ? t('auth.signInSubtitle') : t('auth.subtitle'),
     // Someone who is already a guest gains nothing from "Continue as Guest"
     // except a second, empty guest account.
@@ -81,7 +91,7 @@ export default function AuthScreen() {
   // user accepts it.
   const [switchWarning, setSwitchWarning] = useState<{ then: () => void } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
-  // The phone form sits at the bottom of the page: once the keyboard is up,
+  // The phone form sits near the bottom of the page: once the keyboard is up,
   // scroll so the field (and its button) stay visible above it.
   const revealForm = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250);
   const fullPhone = composePhone(phoneCountry, phoneNumber);
@@ -176,85 +186,110 @@ export default function AuthScreen() {
     >
       <LinearGradient colors={gradients.splash} style={styles.flex}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <Image
-            source={require('../../assets/images/logo-mark.png')}
-            style={styles.logoMark}
-            resizeMode="contain"
-            accessibilityRole="image"
-            accessibilityLabel={BRAND.name}
-          />
-          <Text style={styles.title}>{copy.title}</Text>
-          <Text style={styles.subtitle}>{copy.subtitle}</Text>
-
-          <View style={styles.actions}>
-            {topError && <Text style={styles.errorText}>{topError}</Text>}
-
-            <AppButton
-              label={t('auth.continueWithGoogle')}
-              onPress={handleGoogle}
-              variant="secondary"
-              fullWidth
-              loading={pending === 'google'}
-              disabled={isAuthenticating && pending !== 'google'}
-              icon={<Ionicons name="logo-google" size={18} color={colors.textPrimary} />}
+          <View style={styles.container}>
+            <Image
+              source={require('../../assets/images/logo-mark.png')}
+              style={styles.logoMark}
+              resizeMode="contain"
+              accessibilityRole="image"
+              accessibilityLabel={BRAND.name}
             />
-            {errorFor('google') && <Text style={styles.errorText}>{errorFor('google')}</Text>}
-            {offerSwitchFor('google') && (
-              <AppButton label={t('auth.useThatAccount')} onPress={() => signInWithThatAccount('google')} variant="ghost" fullWidth />
-            )}
+            <Text style={styles.title} accessibilityRole="header">
+              {copy.title}
+            </Text>
+            <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
-            {!showPhoneForm ? (
+            {topError && <Text style={[styles.errorText, styles.topError]}>{topError}</Text>}
+
+            <View style={styles.primaryActions}>
               <AppButton
-                label={t('auth.continueWithWhatsApp')}
-                onPress={() => {
-                  setShowPhoneForm(true);
-                  revealForm();
-                }}
+                label={t('auth.continueWithGoogle')}
+                onPress={handleGoogle}
                 variant="secondary"
                 fullWidth
-                disabled={isAuthenticating}
-                icon={<Ionicons name="logo-whatsapp" size={18} color={colors.textPrimary} />}
+                loading={pending === 'google'}
+                disabled={isAuthenticating && pending !== 'google'}
+                icon={<Ionicons name="logo-google" size={18} color={colors.textPrimary} />}
               />
-            ) : (
-              <PhoneAuthForm
-                step={phoneStep}
-                phoneNumber={phoneNumber}
-                onPhoneNumberChange={setPhoneNumber}
-                country={phoneCountry}
-                onPickCountry={() => setCountryPickerVisible(true)}
-                fullPhone={fullPhone}
-                onInputFocus={revealForm}
-                otpCode={otpCode}
-                onOtpCodeChange={setOtpCode}
-                onSendCode={handleSendCode}
-                onResendCode={handleResendCode}
-                resendLeft={resendLeft}
-                onVerifyCode={handleVerifyCode}
-                onChangeNumber={handleChangeNumber}
-                submitting={pending === 'whatsapp'}
-                error={errorFor('whatsapp')}
-                onUseThatAccount={offerSwitchFor('whatsapp') ? () => signInWithThatAccount('whatsapp') : undefined}
-              />
+              {errorFor('google') && <Text style={styles.errorText}>{errorFor('google')}</Text>}
+              {offerSwitchFor('google') && (
+                <AppButton label={t('auth.useThatAccount')} onPress={() => signInWithThatAccount('google')} variant="ghost" fullWidth />
+              )}
+
+              {!showPhoneForm ? (
+                <AppButton
+                  label={t('auth.continueWithWhatsApp')}
+                  onPress={() => {
+                    setShowPhoneForm(true);
+                    revealForm();
+                  }}
+                  variant="secondary"
+                  fullWidth
+                  disabled={isAuthenticating}
+                  icon={<Ionicons name="logo-whatsapp" size={18} color={colors.textPrimary} />}
+                />
+              ) : (
+                <PhoneAuthForm
+                  step={phoneStep}
+                  phoneNumber={phoneNumber}
+                  onPhoneNumberChange={setPhoneNumber}
+                  country={phoneCountry}
+                  onPickCountry={() => setCountryPickerVisible(true)}
+                  fullPhone={fullPhone}
+                  onInputFocus={revealForm}
+                  otpCode={otpCode}
+                  onOtpCodeChange={setOtpCode}
+                  onSendCode={handleSendCode}
+                  onResendCode={handleResendCode}
+                  resendLeft={resendLeft}
+                  onVerifyCode={handleVerifyCode}
+                  onChangeNumber={handleChangeNumber}
+                  submitting={pending === 'whatsapp'}
+                  error={errorFor('whatsapp')}
+                  onUseThatAccount={offerSwitchFor('whatsapp') ? () => signInWithThatAccount('whatsapp') : undefined}
+                />
+              )}
+            </View>
+
+            {copy.showHaveAccountLink && (
+              <View style={styles.switchRow}>
+                <Text style={styles.switchText}>{t('auth.haveAccount')}</Text>
+                <Pressable
+                  onPress={switchToSignIn}
+                  disabled={isAuthenticating}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('auth.haveAccount')} ${t('auth.signIn')}`}
+                >
+                  <Text style={styles.switchLink}>{t('auth.signIn')}</Text>
+                </Pressable>
+              </View>
             )}
 
             {copy.showGuestButton && (
-              <AppButton
-                label={t('auth.continueAsGuest')}
-                onPress={() => runSignIn('guest', signInAsGuest)}
-                variant="primary"
-                fullWidth
-                loading={pending === 'guest'}
-                disabled={isAuthenticating && pending !== 'guest'}
-                icon={<Ionicons name="person-outline" size={18} color={colors.textInverse} />}
-              />
+              <>
+                <View style={styles.divider} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>{t('auth.or')}</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <View style={styles.altActions}>
+                  <AppButton
+                    label={t('auth.continueAsGuest')}
+                    onPress={() => runSignIn('guest', signInAsGuest)}
+                    variant="ghost"
+                    fullWidth
+                    loading={pending === 'guest'}
+                    disabled={isAuthenticating && pending !== 'guest'}
+                    icon={<Ionicons name="person-outline" size={18} color={colors.textSecondary} />}
+                  />
+                </View>
+              </>
             )}
 
-            {copy.showHaveAccountLink && (
-              <AppButton label={t('auth.haveAccount')} onPress={switchToSignIn} variant="ghost" fullWidth disabled={isAuthenticating} />
-            )}
+            {copy.showLegalDisclosure && <Text style={styles.legal}>{t('auth.legalNotice')}</Text>}
           </View>
-
-          {copy.showLegalDisclosure && <Text style={styles.legal}>{t('auth.legalNotice')}</Text>}
         </ScrollView>
         <OptionPickerModal
           visible={countryPickerVisible}
@@ -288,6 +323,44 @@ export default function AuthScreen() {
         </AppModal>
       </LinearGradient>
     </KeyboardAvoidingView>
+  );
+}
+
+interface AuthFieldProps extends Omit<TextInputProps, 'style' | 'placeholder' | 'placeholderTextColor'> {
+  label: string;
+  error?: string | null;
+}
+
+/** Netflix-style input: a dark box whose label sits where the placeholder
+ * would be, then shrinks to the top edge once the field is focused or filled
+ * — so the label stays visible while typing, unlike a placeholder. */
+function AuthField({ label, error, value, onFocus, onBlur, ...inputProps }: AuthFieldProps) {
+  const [focused, setFocused] = useState(false);
+  const floated = focused || !!value;
+
+  return (
+    <View style={styles.fieldWrap}>
+      <View style={[styles.field, focused && styles.fieldFocused, !!error && styles.fieldError]}>
+        <Text style={[styles.fieldLabel, floated && styles.fieldLabelFloated]} numberOfLines={1}>
+          {label}
+        </Text>
+        <TextInput
+          {...inputProps}
+          value={value}
+          style={styles.fieldInput}
+          accessibilityLabel={label}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
+        />
+      </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    </View>
   );
 }
 
@@ -342,7 +415,7 @@ function PhoneAuthForm({
 
   if (step === 'phone') {
     return (
-      <View style={styles.formCard}>
+      <View style={styles.form}>
         <View style={styles.phoneRow}>
           <Pressable
             style={styles.countryButton}
@@ -355,19 +428,18 @@ function PhoneAuthForm({
             </Text>
             <Ionicons name="chevron-down" size={14} color={colors.textTertiary} />
           </Pressable>
-          <TextInput
-            style={[styles.input, styles.phoneInput]}
-            placeholder={country.example}
-            placeholderTextColor={colors.textTertiary}
-            value={phoneNumber}
-            onChangeText={onPhoneNumberChange}
-            onFocus={onInputFocus}
-            accessibilityLabel={t('auth.phoneNumberLabel')}
-            autoCapitalize="none"
-            keyboardType="phone-pad"
-            textContentType="telephoneNumber"
-            autoComplete="tel"
-          />
+          <View style={styles.phoneField}>
+            <AuthField
+              label={t('auth.phoneLabel')}
+              value={phoneNumber}
+              onChangeText={onPhoneNumberChange}
+              onFocus={onInputFocus}
+              autoCapitalize="none"
+              keyboardType="phone-pad"
+              textContentType="telephoneNumber"
+              autoComplete="tel"
+            />
+          </View>
         </View>
         {error && <Text style={styles.errorText}>{error}</Text>}
         {switchButton}
@@ -378,28 +450,25 @@ function PhoneAuthForm({
           fullWidth
           loading={submitting}
           disabled={!looksComplete(country, phoneNumber)}
+          icon={<Ionicons name="logo-whatsapp" size={18} color={colors.textInverse} />}
         />
       </View>
     );
   }
 
   return (
-    <View style={styles.formCard}>
+    <View style={styles.form}>
       <Text style={styles.otpSubtitle}>{t('auth.otpSubtitle', { phone: formatPhone(fullPhone) })}</Text>
-      <View style={styles.fieldWrap}>
-        <TextInput
-          style={styles.input}
-          placeholder={t('auth.otpPlaceholder')}
-          placeholderTextColor={colors.textTertiary}
-          value={otpCode}
-          onChangeText={onOtpCodeChange}
-          accessibilityLabel={t('auth.otpLabel')}
-          keyboardType="number-pad"
-          onFocus={onInputFocus}
-          textContentType="oneTimeCode"
-          maxLength={6}
-        />
-      </View>
+      <AuthField
+        label={t('auth.otpPlaceholder')}
+        value={otpCode}
+        onChangeText={onOtpCodeChange}
+        onFocus={onInputFocus}
+        keyboardType="number-pad"
+        textContentType="oneTimeCode"
+        autoComplete="sms-otp"
+        maxLength={6}
+      />
       {error && <Text style={styles.errorText}>{error}</Text>}
       {switchButton}
       <AppButton label={t('auth.verifyCode')} onPress={onVerifyCode} variant="primary" fullWidth loading={submitting} disabled={otpCode.trim().length < 6} />
@@ -415,10 +484,13 @@ function PhoneAuthForm({
   );
 }
 
+const FIELD_HEIGHT = 58;
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  scrollContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  logoMark: { width: 72, height: 72, marginBottom: spacing.lg },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.xxl },
+  container: { width: '100%', maxWidth: 400, alignSelf: 'center' },
+  logoMark: { width: 56, height: 56, alignSelf: 'center', marginBottom: spacing.lg },
   title: { ...typography.h1, color: colors.textPrimary, textAlign: 'center' },
   subtitle: {
     ...typography.body,
@@ -426,49 +498,75 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.xs,
     marginBottom: spacing.xl,
-    maxWidth: 320,
+    alignSelf: 'center',
+    maxWidth: 340,
   },
-  actions: { width: '100%', maxWidth: 360, gap: spacing.sm },
-  formCard: {
-    width: '100%',
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  otpSubtitle: { ...typography.caption, color: colors.textTertiary },
+  topError: { textAlign: 'center', marginBottom: spacing.md },
+  primaryActions: { gap: spacing.sm },
+  form: { gap: spacing.sm },
   fieldWrap: { gap: 4 },
+  field: {
+    height: FIELD_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  fieldFocused: { borderColor: colors.textSecondary },
+  fieldError: { borderColor: colors.danger },
+  fieldLabel: {
+    position: 'absolute',
+    left: spacing.md,
+    right: spacing.md,
+    top: (FIELD_HEIGHT - 22) / 2 - 1.5,
+    ...typography.body,
+    color: colors.textTertiary,
+    pointerEvents: 'none',
+  },
+  fieldLabelFloated: { top: 7, ...typography.micro, color: colors.textTertiary },
+  fieldInput: {
+    flex: 1,
+    height: '100%',
+    paddingHorizontal: spacing.md,
+    paddingTop: 20,
+    paddingBottom: 4,
+    ...typography.body,
+    color: colors.textPrimary,
+    // The whole field's border brightens on focus (fieldFocused); the
+    // browser's own outline would draw a second, square box inside it.
+    outlineWidth: 0,
+  },
+  switchRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginTop: spacing.md },
+  switchText: { ...typography.body, color: colors.textTertiary },
+  switchLink: { ...typography.bodyMedium, color: colors.textPrimary, textDecorationLine: 'underline' },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.lg },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderStrong },
+  dividerText: { ...typography.caption, color: colors.textTertiary, textTransform: 'uppercase' },
+  altActions: { gap: spacing.sm },
+  otpSubtitle: { ...typography.caption, color: colors.textTertiary },
   phoneRow: { flexDirection: 'row', gap: spacing.xs },
+  phoneField: { flex: 1 },
   countryButton: {
+    height: FIELD_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: colors.surfaceRaised,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     paddingHorizontal: spacing.sm,
   },
   countryText: { ...typography.body, color: colors.textPrimary },
-  phoneInput: { flex: 1 },
-  input: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    color: colors.textPrimary,
-    ...typography.body,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
   errorText: { ...typography.caption, color: colors.danger },
   legal: {
     ...typography.caption,
     color: colors.textDisabled,
     textAlign: 'center',
     marginTop: spacing.xl,
+    alignSelf: 'center',
     maxWidth: 320,
   },
   // Same look as Profile's destructive confirmations.

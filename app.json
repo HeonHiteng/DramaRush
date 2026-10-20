@@ -8,10 +8,9 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0E0B12",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.dramarush.prototype"
+      "bundleIdentifier": "com.kbbox.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +20,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.dramarush.prototype"
+      "package": "com.kbbox.app"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -37,7 +36,8 @@
           "supportsBackgroundPlayback": false
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font"
     ],
     "extra": {
       "isPrototype": true
