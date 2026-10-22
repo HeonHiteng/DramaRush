@@ -13,6 +13,7 @@ import { colors, gradients, typography } from '@/theme';
 import { BRAND } from '@/config';
 import { useUserStore } from '@/store';
 import { useAppEntryRedirect } from '@/hooks/useAppEntryRedirect';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const MIN_SPLASH_MS = 1400;
 // The full logo already includes the "KBbox" wordmark.
@@ -22,6 +23,7 @@ export default function SplashScreen() {
   const hasHydrated = useUserStore((s) => s.hasHydrated);
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
   const redirectTo = useAppEntryRedirect(hasHydrated && minTimeElapsed);
+  const { t } = useTranslation();
 
   const logoScale = useSharedValue(0.7);
   const logoOpacity = useSharedValue(0);
@@ -53,7 +55,8 @@ export default function SplashScreen() {
         accessibilityRole="image"
         accessibilityLabel={BRAND.name}
       />
-      <Animated.Text style={[styles.tagline, taglineStyle]}>{BRAND.tagline}</Animated.Text>
+      {/* The brand tagline, which is also the first onboarding slide's title. */}
+      <Animated.Text style={[styles.tagline, taglineStyle]}>{t('onboarding.slide1.title')}</Animated.Text>
     </LinearGradient>
   );
 }

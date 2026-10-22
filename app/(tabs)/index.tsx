@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { PosterRailSkeleton, SkeletonBlock } from '@/components/ui/LoadingSkeleton';
+import { LinkAccountBanner } from '@/components/ui/LinkAccountBanner';
 import { HeroCarousel, PosterCard, SeriesRail } from '@/components/media';
 import { BRAND } from '@/config';
 import {
@@ -71,6 +72,9 @@ export default function HomeScreen() {
             <Ionicons name="wallet-outline" size={20} color={colors.textPrimary} />
           </Pressable>
         </View>
+
+        {/* Guests only; renders nothing otherwise. */}
+        <LinkAccountBanner />
 
         <HeroCarousel series={getHeroSeries(series)} episodes={episodes} />
 

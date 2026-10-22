@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
@@ -14,48 +14,54 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useForm, Controller, type Control, type FieldErrors } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { colors, gradients, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
+import { AppModal } from '@/components/ui/AppModal';
 import { useUserStore } from '@/store';
-import { BRAND, DEFAULT_MEMBER_NAME } from '@/config';
+import { BRAND } from '@/config';
 import { useTranslation } from '@/i18n/useTranslation';
 import { OptionPickerModal } from '@/components/ui/OptionPickerModal';
 import { composePhone, DEFAULT_PHONE_COUNTRY, formatPhone, looksComplete, PHONE_COUNTRIES, type PhoneCountry } from '@/utils/phone';
 
-const emailSchema = z.object({
-  name: z.string().trim().optional(),
-  email: z.string().trim().email('Enter a valid email address'),
-  password: z.string().min(6, 'At least 6 characters'),
-});
-type EmailFormValues = z.infer<typeof emailSchema>;
+type PendingAction = 'guest' | 'google' | 'whatsapp' | null;
+type ScreenMode = 'default' | 'link' | 'switch';
 
-type PendingAction = 'guest' | 'email' | 'google' | 'whatsapp' | null;
-type FormMode = 'signup' | 'signin';
+/** WhatsApp only lets a code be re-requested so often; matching that here
+ * keeps people from tapping into the rate limit. */
+const RESEND_COOLDOWN_S = 60;
 
-/** Title/subtitle for the three versions of this screen: sign in, sign up,
- * and a guest saving their progress (sign up from Profile, `?mode=upgrade`). */
-function getScreenCopy(isUpgrade: boolean, mode: FormMode, t: ReturnType<typeof useTranslation>['t']) {
-  if (mode === 'signin') return { title: t('auth.signIn'), subtitle: t('auth.subtitle') };
-  if (isUpgrade) return { title: t('auth.upgradeTitle'), subtitle: t('auth.upgradeSubtitle') };
-  return { title: t('auth.createAccount'), subtitle: t('auth.signUpSubtitle') };
+/** The screen renders three different pitches depending on why it was
+ * opened (see `mode` below) — collecting what differs into one object keeps
+ * that split in one place instead of scattered through the JSX. */
+function getScreenCopy(mode: ScreenMode, t: ReturnType<typeof useTranslation>['t']) {
+  return {
+    title: mode === 'link' ? t('auth.upgradeTitle') : mode === 'switch' ? t('auth.signInTitle') : t('auth.signIn'),
+    subtitle: mode === 'link' ? t('auth.upgradeSubtitle') : mode === 'switch' ? t('auth.signInSubtitle') : t('auth.subtitle'),
+    // Someone who is already a guest gains nothing from "Continue as Guest"
+    // except a second, empty guest account.
+    showGuestButton: mode === 'default',
+    showHaveAccountLink: mode === 'link',
+    showLegalDisclosure: mode !== 'link',
+  };
 }
 
 export default function AuthScreen() {
-  // Reached two ways: (1) after signing out, or as a fallback if the
-  // automatic guest sign-in on onboarding/relaunch failed; (2) from Profile as
-  // `?mode=upgrade`, when an already-signed-in guest wants to attach real
-  // credentials to their existing account instead of starting a new one.
-  const { mode: screenModeParam } = useLocalSearchParams<{ mode?: string }>();
-  const isUpgrade = screenModeParam === 'upgrade';
+  // Reached two ways: (1) as a fallback if the automatic guest sign-in on
+  // onboarding/relaunch failed, or after a member's session expired, showing
+  // every option; (2) from Profile as `?mode=upgrade`, when a signed-in guest
+  // wants to link Google/WhatsApp to their existing account. From (2) the
+  // guest can switch to signing into an account they already have (after a
+  // warning that the guest's data stays behind) — mode 'switch'.
+  // `failed` names the method a web OAuth round trip just failed with, so its
+  // error shows next to that button (see /auth/callback).
+  const { mode: modeParam, failed } = useLocalSearchParams<{ mode?: string; failed?: string }>();
+  const [switched, setSwitched] = useState(false);
+  const mode: ScreenMode = modeParam === 'upgrade' ? (switched ? 'switch' : 'link') : 'default';
+  const isLinking = mode === 'link';
   const { t } = useTranslation();
+  const copy = getScreenCopy(mode, t);
 
   const signInAsGuest = useUserStore((s) => s.signInAsGuest);
-  const signUpWithEmail = useUserStore((s) => s.signUpWithEmail);
-  const signInWithEmail = useUserStore((s) => s.signInWithEmail);
-  const upgradeGuestAccount = useUserStore((s) => s.upgradeGuestAccount);
   const signInWithOAuth = useUserStore((s) => s.signInWithOAuth);
   const signInWithPhoneOtp = useUserStore((s) => s.signInWithPhoneOtp);
   const verifyPhoneOtp = useUserStore((s) => s.verifyPhoneOtp);
@@ -69,65 +75,81 @@ export default function AuthScreen() {
   const [pending, setPending] = useState<PendingAction>(null);
   // Which action the current authError belongs to, so it's shown beside
   // that action only — not repeated in every form on the screen.
-  const [lastAttempt, setLastAttempt] = useState<PendingAction>(null);
-  // Someone landing here after signing out most likely wants to sign back in;
-  // a guest saving their progress is creating an account.
-  const [mode, setMode] = useState<FormMode>(isUpgrade ? 'signup' : 'signin');
+  const [lastAttempt, setLastAttempt] = useState<PendingAction>(failed === 'google' ? 'google' : null);
   const [showPhoneForm, setShowPhoneForm] = useState(false);
   const [phoneStep, setPhoneStep] = useState<'phone' | 'otp'>('phone');
+  // Whether the code on its way was requested to link (verify as
+  // 'phone_change') or to sign in ('sms') — fixed when it's sent, because
+  // the screen's mode can change while the user is reading WhatsApp.
+  const [phoneFlow, setPhoneFlow] = useState<'link' | 'signin'>('signin');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [phoneCountry, setPhoneCountry] = useState<PhoneCountry>(DEFAULT_PHONE_COUNTRY);
   const [countryPickerVisible, setCountryPickerVisible] = useState(false);
   const [otpCode, setOtpCode] = useState('');
+  const [resendLeft, setResendLeft] = useState(0);
+  // The "your guest data won't come along" warning, and what to do once the
+  // user accepts it.
+  const [switchWarning, setSwitchWarning] = useState<{ then: () => void } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   // The phone form sits near the bottom of the page: once the keyboard is up,
   // scroll so the field (and its button) stay visible above it.
   const revealForm = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250);
   const fullPhone = composePhone(phoneCountry, phoneNumber);
-  const copy = getScreenCopy(isUpgrade, mode, t);
 
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<EmailFormValues>({
-    resolver: zodResolver(emailSchema),
-    defaultValues: { name: '', email: '', password: '' },
-  });
+  useEffect(() => {
+    if (resendLeft <= 0) return;
+    const timer = setTimeout(() => setResendLeft((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendLeft]);
 
-  const errorFor = (action: PendingAction) => (pending === null && lastAttempt === action ? authError : null);
+  const errorFor = (action: PendingAction) =>
+    pending === null && lastAttempt === action && authError ? t(authError, { brand: BRAND.name }) : null;
   // Guest sign-in errors, plus any error already set when this screen opened
-  // (e.g. the automatic guest sign-in failed and sent the user here).
+  // (e.g. the automatic guest sign-in failed, or the session expired).
   const topError = errorFor('guest') ?? errorFor(null);
+  // Linking failed because that Google account / number already has its own
+  // account: offer to sign into it instead (same warning as the link below).
+  const offerSwitchFor = (action: PendingAction) =>
+    isLinking && pending === null && lastAttempt === action && authError === 'auth.alreadyLinked';
 
-  const runSignIn = async (action: Exclude<PendingAction, null>, task: () => Promise<boolean>) => {
+  const afterSuccess = (linked: boolean) => router.replace(linked ? '/(tabs)/profile' : '/(tabs)');
+
+  const runSignIn = async (action: Exclude<PendingAction, null>, task: () => Promise<boolean>, linked = false) => {
     clearAuthError();
     setLastAttempt(action);
     setPending(action);
     const succeeded = await task();
     setPending(null);
-    if (succeeded) router.replace('/(tabs)');
+    if (succeeded) afterSuccess(linked);
   };
 
-  const handleSendCode = async () => {
+  const sendCode = async (flow: 'link' | 'signin') => {
     clearAuthError();
     setLastAttempt('whatsapp');
     setPending('whatsapp');
-    // Upgrading a guest attaches the number to their current account;
-    // otherwise it's an ordinary sign-in.
-    const sendCode = isUpgrade ? linkPhoneOtp : signInWithPhoneOtp;
-    const ok = await sendCode(fullPhone);
+    // Linking attaches the number to the guest's current account; otherwise
+    // it's an ordinary sign-in (which replaces the current session).
+    const send = flow === 'link' ? linkPhoneOtp : signInWithPhoneOtp;
+    const ok = await send(fullPhone);
     setPending(null);
-    if (ok) setPhoneStep('otp');
+    if (ok) {
+      setPhoneFlow(flow);
+      setPhoneStep('otp');
+      setResendLeft(RESEND_COOLDOWN_S);
+    }
   };
 
+  const handleSendCode = () => sendCode(isLinking ? 'link' : 'signin');
+  const handleResendCode = () => sendCode(phoneFlow);
+
   const handleVerifyCode = () => {
-    const verify = isUpgrade ? verifyLinkedPhoneOtp : verifyPhoneOtp;
-    runSignIn('whatsapp', () => verify(fullPhone, otpCode.trim()));
+    const linking = phoneFlow === 'link';
+    const verify = linking ? verifyLinkedPhoneOtp : verifyPhoneOtp;
+    runSignIn('whatsapp', () => verify(fullPhone, otpCode.trim()), linking);
   };
 
   const handleGoogle = () =>
-    runSignIn('google', () => (isUpgrade ? linkOAuthIdentity('google') : signInWithOAuth('google')));
+    runSignIn('google', () => (isLinking ? linkOAuthIdentity('google') : signInWithOAuth('google')), isLinking);
 
   const handleChangeNumber = () => {
     clearAuthError();
@@ -135,22 +157,25 @@ export default function AuthScreen() {
     setOtpCode('');
   };
 
-  const switchMode = () => {
-    clearAuthError();
-    setMode((m) => (m === 'signin' ? 'signup' : 'signin'));
-  };
+  const warnThen = (then: () => void) => setSwitchWarning({ then });
 
-  const onSubmitEmail = (values: EmailFormValues) => {
-    if (mode === 'signup') {
-      const name = values.name?.trim() || DEFAULT_MEMBER_NAME;
-      const task = isUpgrade
-        ? () => upgradeGuestAccount(name, values.email, values.password)
-        : () => signUpWithEmail(name, values.email, values.password);
-      runSignIn('email', task);
-    } else {
-      runSignIn('email', () => signInWithEmail(values.email, values.password));
-    }
-  };
+  const switchToSignIn = () =>
+    warnThen(() => {
+      clearAuthError();
+      setLastAttempt(null);
+      setSwitched(true);
+      setPhoneStep('phone');
+      setOtpCode('');
+    });
+
+  /** "Sign in with that account" after an alreadyLinked error: switch modes
+   * and retry the same method as a sign-in. */
+  const signInWithThatAccount = (action: 'google' | 'whatsapp') =>
+    warnThen(() => {
+      setSwitched(true);
+      if (action === 'google') runSignIn('google', () => signInWithOAuth('google'));
+      else sendCode('signin');
+    });
 
   return (
     <KeyboardAvoidingView
@@ -176,35 +201,7 @@ export default function AuthScreen() {
 
             {topError && <Text style={[styles.errorText, styles.topError]}>{topError}</Text>}
 
-            <EmailAuthForm
-              control={control}
-              errors={errors}
-              mode={mode}
-              onSubmit={handleSubmit(onSubmitEmail)}
-              submitting={pending === 'email'}
-              disabled={isAuthenticating && pending !== 'email'}
-              error={errorFor('email')}
-            />
-
-            <View style={styles.switchRow}>
-              <Text style={styles.switchText}>{mode === 'signin' ? t('auth.newHere', { brand: BRAND.name }) : t('auth.haveAccount')}</Text>
-              <Pressable
-                onPress={switchMode}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={mode === 'signin' ? t('auth.signUpNow') : t('auth.signIn')}
-              >
-                <Text style={styles.switchLink}>{mode === 'signin' ? t('auth.signUpNow') : t('auth.signIn')}</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.divider} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>{t('auth.or')}</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <View style={styles.altActions}>
+            <View style={styles.primaryActions}>
               <AppButton
                 label={t('auth.continueWithGoogle')}
                 onPress={handleGoogle}
@@ -215,6 +212,9 @@ export default function AuthScreen() {
                 icon={<Ionicons name="logo-google" size={18} color={colors.textPrimary} />}
               />
               {errorFor('google') && <Text style={styles.errorText}>{errorFor('google')}</Text>}
+              {offerSwitchFor('google') && (
+                <AppButton label={t('auth.useThatAccount')} onPress={() => signInWithThatAccount('google')} variant="ghost" fullWidth />
+              )}
 
               {!showPhoneForm ? (
                 <AppButton
@@ -240,27 +240,55 @@ export default function AuthScreen() {
                   otpCode={otpCode}
                   onOtpCodeChange={setOtpCode}
                   onSendCode={handleSendCode}
+                  onResendCode={handleResendCode}
+                  resendLeft={resendLeft}
                   onVerifyCode={handleVerifyCode}
                   onChangeNumber={handleChangeNumber}
                   submitting={pending === 'whatsapp'}
                   error={errorFor('whatsapp')}
-                />
-              )}
-
-              {!isUpgrade && (
-                <AppButton
-                  label={t('auth.continueAsGuest')}
-                  onPress={() => runSignIn('guest', signInAsGuest)}
-                  variant="ghost"
-                  fullWidth
-                  loading={pending === 'guest'}
-                  disabled={isAuthenticating && pending !== 'guest'}
-                  icon={<Ionicons name="person-outline" size={18} color={colors.textSecondary} />}
+                  onUseThatAccount={offerSwitchFor('whatsapp') ? () => signInWithThatAccount('whatsapp') : undefined}
                 />
               )}
             </View>
 
-            {!isUpgrade && <Text style={styles.legal}>{t('auth.legalNotice')}</Text>}
+            {copy.showHaveAccountLink && (
+              <View style={styles.switchRow}>
+                <Text style={styles.switchText}>{t('auth.haveAccount')}</Text>
+                <Pressable
+                  onPress={switchToSignIn}
+                  disabled={isAuthenticating}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('auth.haveAccount')} ${t('auth.signIn')}`}
+                >
+                  <Text style={styles.switchLink}>{t('auth.signIn')}</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {copy.showGuestButton && (
+              <>
+                <View style={styles.divider} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>{t('auth.or')}</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <View style={styles.altActions}>
+                  <AppButton
+                    label={t('auth.continueAsGuest')}
+                    onPress={() => runSignIn('guest', signInAsGuest)}
+                    variant="ghost"
+                    fullWidth
+                    loading={pending === 'guest'}
+                    disabled={isAuthenticating && pending !== 'guest'}
+                    icon={<Ionicons name="person-outline" size={18} color={colors.textSecondary} />}
+                  />
+                </View>
+              </>
+            )}
+
+            {copy.showLegalDisclosure && <Text style={styles.legal}>{t('auth.legalNotice')}</Text>}
           </View>
         </ScrollView>
         <OptionPickerModal
@@ -274,6 +302,25 @@ export default function AuthScreen() {
           onClose={() => setCountryPickerVisible(false)}
           closeLabel={t('common.close')}
         />
+        <AppModal visible={switchWarning !== null} onClose={() => setSwitchWarning(null)}>
+          <View style={styles.warningIconWrap}>
+            <Ionicons name="warning" size={26} color={colors.danger} />
+          </View>
+          <Text style={styles.warningTitle}>{t('auth.switchWarningTitle')}</Text>
+          <Text style={styles.warningBody}>{t('auth.switchWarningBody')}</Text>
+          <AppButton
+            label={t('auth.switchConfirm')}
+            onPress={() => {
+              const then = switchWarning?.then;
+              setSwitchWarning(null);
+              then?.();
+            }}
+            variant="danger"
+            fullWidth
+            style={styles.warningAction}
+          />
+          <AppButton label={t('common.cancel')} onPress={() => setSwitchWarning(null)} variant="ghost" fullWidth />
+        </AppModal>
       </LinearGradient>
     </KeyboardAvoidingView>
   );
@@ -282,14 +329,12 @@ export default function AuthScreen() {
 interface AuthFieldProps extends Omit<TextInputProps, 'style' | 'placeholder' | 'placeholderTextColor'> {
   label: string;
   error?: string | null;
-  /** E.g. the password show/hide toggle, drawn inside the field on the right. */
-  accessory?: React.ReactNode;
 }
 
 /** Netflix-style input: a dark box whose label sits where the placeholder
  * would be, then shrinks to the top edge once the field is focused or filled
  * — so the label stays visible while typing, unlike a placeholder. */
-function AuthField({ label, error, accessory, value, onFocus, onBlur, ...inputProps }: AuthFieldProps) {
+function AuthField({ label, error, value, onFocus, onBlur, ...inputProps }: AuthFieldProps) {
   const [focused, setFocused] = useState(false);
   const floated = focused || !!value;
 
@@ -313,107 +358,8 @@ function AuthField({ label, error, accessory, value, onFocus, onBlur, ...inputPr
             onBlur?.(e);
           }}
         />
-        {accessory}
       </View>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
-    </View>
-  );
-}
-
-interface EmailAuthFormProps {
-  control: Control<EmailFormValues>;
-  errors: FieldErrors<EmailFormValues>;
-  mode: FormMode;
-  onSubmit: () => void;
-  submitting: boolean;
-  disabled: boolean;
-  error: string | null;
-}
-
-/** The name (sign-up only), email and password fields plus the submit button. */
-function EmailAuthForm({ control, errors, mode, onSubmit, submitting, disabled, error }: EmailAuthFormProps) {
-  const { t } = useTranslation();
-  const [passwordVisible, setPasswordVisible] = useState(false);
-
-  return (
-    <View style={styles.form}>
-      {mode === 'signup' && (
-        <Controller
-          control={control}
-          name="name"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <AuthField
-              label={t('auth.nameLabel')}
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              autoCapitalize="words"
-              autoComplete="name"
-              textContentType="name"
-            />
-          )}
-        />
-      )}
-      <Controller
-        control={control}
-        name="email"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <AuthField
-            label={t('auth.emailLabel')}
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            error={errors.email?.message}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            autoComplete="email"
-            textContentType="emailAddress"
-          />
-        )}
-      />
-      <Controller
-        control={control}
-        name="password"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <AuthField
-            label={t('auth.passwordPlaceholder')}
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            error={errors.password?.message}
-            secureTextEntry={!passwordVisible}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            textContentType={mode === 'signup' ? 'newPassword' : 'password'}
-            onSubmitEditing={onSubmit}
-            returnKeyType="go"
-            accessory={
-              <Pressable
-                onPress={() => setPasswordVisible((v) => !v)}
-                hitSlop={10}
-                style={styles.fieldAccessory}
-                accessibilityRole="button"
-                accessibilityLabel={passwordVisible ? t('auth.hidePassword') : t('auth.showPassword')}
-              >
-                <Ionicons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.textTertiary} />
-              </Pressable>
-            }
-          />
-        )}
-      />
-      {error && <Text style={styles.errorText}>{error}</Text>}
-      <AppButton
-        label={mode === 'signup' ? t('auth.createAccount') : t('auth.signIn')}
-        onPress={onSubmit}
-        variant="primary"
-        size="lg"
-        fullWidth
-        loading={submitting}
-        disabled={disabled}
-        style={styles.submit}
-      />
     </View>
   );
 }
@@ -430,15 +376,19 @@ interface PhoneAuthFormProps {
   otpCode: string;
   onOtpCodeChange: (value: string) => void;
   onSendCode: () => void;
+  onResendCode: () => void;
+  /** Seconds until another code may be requested; 0 = now. */
+  resendLeft: number;
   onVerifyCode: () => void;
   onChangeNumber: () => void;
   submitting: boolean;
   error: string | null;
+  /** Shown when linking failed because the number already has an account. */
+  onUseThatAccount?: () => void;
 }
 
 /** Two-step WhatsApp sign-in: collect a phone number, send a 6-digit code to
- * it over WhatsApp, then collect that code to finish signing in. Uses the same
- * AuthField inputs as the email form so the two read as one design. */
+ * it over WhatsApp, then collect that code to finish signing in. */
 function PhoneAuthForm({
   step,
   phoneNumber,
@@ -450,12 +400,18 @@ function PhoneAuthForm({
   otpCode,
   onOtpCodeChange,
   onSendCode,
+  onResendCode,
+  resendLeft,
   onVerifyCode,
   onChangeNumber,
   submitting,
   error,
+  onUseThatAccount,
 }: PhoneAuthFormProps) {
   const { t } = useTranslation();
+  const switchButton = onUseThatAccount && (
+    <AppButton label={t('auth.useThatAccount')} onPress={onUseThatAccount} variant="ghost" fullWidth />
+  );
 
   if (step === 'phone') {
     return (
@@ -478,6 +434,7 @@ function PhoneAuthForm({
               value={phoneNumber}
               onChangeText={onPhoneNumberChange}
               onFocus={onInputFocus}
+              autoCapitalize="none"
               keyboardType="phone-pad"
               textContentType="telephoneNumber"
               autoComplete="tel"
@@ -485,6 +442,7 @@ function PhoneAuthForm({
           </View>
         </View>
         {error && <Text style={styles.errorText}>{error}</Text>}
+        {switchButton}
         <AppButton
           label={t('auth.sendCodeViaWhatsApp')}
           onPress={onSendCode}
@@ -512,7 +470,15 @@ function PhoneAuthForm({
         maxLength={6}
       />
       {error && <Text style={styles.errorText}>{error}</Text>}
+      {switchButton}
       <AppButton label={t('auth.verifyCode')} onPress={onVerifyCode} variant="primary" fullWidth loading={submitting} disabled={otpCode.trim().length < 6} />
+      <AppButton
+        label={resendLeft > 0 ? t('auth.resendIn', { seconds: resendLeft }) : t('auth.resendCode')}
+        onPress={onResendCode}
+        variant="ghost"
+        fullWidth
+        disabled={submitting || resendLeft > 0}
+      />
       <AppButton label={t('auth.changeNumber')} onPress={onChangeNumber} variant="ghost" fullWidth disabled={submitting} />
     </View>
   );
@@ -536,6 +502,7 @@ const styles = StyleSheet.create({
     maxWidth: 340,
   },
   topError: { textAlign: 'center', marginBottom: spacing.md },
+  primaryActions: { gap: spacing.sm },
   form: { gap: spacing.sm },
   fieldWrap: { gap: 4 },
   field: {
@@ -571,8 +538,6 @@ const styles = StyleSheet.create({
     // browser's own outline would draw a second, square box inside it.
     outlineWidth: 0,
   },
-  fieldAccessory: { paddingHorizontal: spacing.md, height: '100%', justifyContent: 'center' },
-  submit: { marginTop: spacing.xs },
   switchRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginTop: spacing.md },
   switchText: { ...typography.body, color: colors.textTertiary },
   switchLink: { ...typography.bodyMedium, color: colors.textPrimary, textDecorationLine: 'underline' },
@@ -604,4 +569,17 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     maxWidth: 320,
   },
+  // Same look as Profile's destructive confirmations.
+  warningIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(232,71,76,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  warningTitle: { ...typography.h2, color: colors.textPrimary, marginBottom: spacing.xs },
+  warningBody: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.lg },
+  warningAction: { marginBottom: spacing.sm },
 });

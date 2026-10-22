@@ -21,6 +21,8 @@ export interface PlaybackGrant {
 export type PlaybackErrorCode =
   | 'not_authenticated'
   | 'not_entitled'
+  /** A guest asked for a coin or member episode: show the link-account gate, not the paywall. */
+  | 'account_required'
   | 'unavailable'
   | 'rate_limited'
   | 'blocked'
@@ -36,6 +38,7 @@ const EXPIRY_MARGIN_MS = 60_000;
 const KNOWN_CODES: PlaybackErrorCode[] = [
   'not_authenticated',
   'not_entitled',
+  'account_required',
   'unavailable',
   'rate_limited',
   'blocked',
@@ -45,6 +48,7 @@ const KNOWN_CODES: PlaybackErrorCode[] = [
 
 const cache = new Map<string, PlaybackGrant>();
 
+/** Whether `grant` can still start or resume playback. */
 export function isGrantFresh(grant: PlaybackGrant | null | undefined): grant is PlaybackGrant {
   return !!grant && grant.expiresAt - EXPIRY_MARGIN_MS > Date.now();
 }

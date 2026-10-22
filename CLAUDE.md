@@ -57,4 +57,5 @@ change** — only data, playback and security logic, and bug fixes.
 App ID is `com.kbbox.app` (iOS bundle id + Android package; permanent once published).
 Builds: `eas.json` has `preview` (installable Android .apk) and `production` (Play Store .aab).
 Placeholders: `supportEmail`/`websiteUrl` in `src/config/brand.ts` (waiting for real values). Turnstile captcha on guest sign-in, RevenueCat,
-AdMob server-side verification, Apple/Google sign-in on the new project.
+AdMob server-side verification, Apple sign-in on the new project.
+The app signs in with Google, WhatsApp or as a guest only — email/password sign-in was removed by product decision, so don't add it back.
