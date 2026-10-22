@@ -1,9 +1,12 @@
 jest.mock('@/lib/supabase', () => require('../testUtils/supabaseMock'));
 jest.mock('expo-router', () => ({ router: { replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => false) } }));
+// No device key unless a test gives one: guest sign-in then takes the anonymous path.
+jest.mock('@/utils/deviceKey', () => ({ getDeviceKey: jest.fn(async () => null) }));
 
 import { router } from 'expo-router';
 import { __emitAuthEvent, __getTable, __makeSession, __reset, __setUserId, supabase } from '../testUtils/supabaseMock';
-import { startAuthListener } from '@/store/AuthListener';
+import { getDeviceKey } from '@/utils/deviceKey';
+import { isGuestSession, startAuthListener } from '@/store/AuthListener';
 import { useUserStore } from '@/store/userStore';
 import { useWalletStore } from '@/store/walletStore';
 import { useLibraryStore } from '@/store/libraryStore';
@@ -63,6 +66,7 @@ describe('AuthListener', () => {
     __reset();
     jest.restoreAllMocks();
     (router.replace as jest.Mock).mockClear();
+    (getDeviceKey as jest.Mock).mockResolvedValue(null);
     queryClient.clear();
     useUserStore.setState({ user: null, sessionChecked: false, signOutRequested: false, authError: null, pendingWelcome: false });
     useWalletStore.getState().resetLocal();
@@ -177,6 +181,36 @@ describe('AuthListener', () => {
     expect(useUserStore.getState().user).toMatchObject({ id: 'guest-1', provider: 'guest' });
     expect(useWalletStore.getState().balance).toBe(0);
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('brings a device guest whose session ended back to the same account', async () => {
+    (getDeviceKey as jest.Mock).mockResolvedValue('a-0123456789abcdef');
+    await useUserStore.getState().signInAsGuest();
+    await settle();
+    const first = useUserStore.getState().user;
+    expect(first).toMatchObject({ id: 'device-guest-1', provider: 'guest' });
+    // The synthetic guest-domain address is never shown as the user's email.
+    expect(first?.email).toBeUndefined();
+
+    __setUserId(null);
+    __emitAuthEvent('SIGNED_OUT', null);
+    await settle();
+
+    expect(useUserStore.getState().user).toMatchObject({ id: 'device-guest-1', provider: 'guest' });
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('treats a device guest session as a guest until it links Google or a phone', () => {
+    const session = (identities: { provider: string }[]) =>
+      ({
+        user: { id: 'd', is_anonymous: false, email: 'd-abc@guest.kbbox.app', identities },
+      }) as unknown as Parameters<typeof isGuestSession>[0];
+    expect(isGuestSession(session([{ provider: 'email' }]))).toBe(true);
+    expect(isGuestSession(session([{ provider: 'email' }, { provider: 'google' }]))).toBe(false);
+    expect(isGuestSession(session([{ provider: 'email' }, { provider: 'phone' }]))).toBe(false);
+    expect(
+      isGuestSession({ user: { id: 'm', is_anonymous: false, email: 'ann@example.com', identities: [{ provider: 'email' }] } } as never)
+    ).toBe(false);
   });
 
   it("sends a member whose session expired to sign in, with a message", async () => {

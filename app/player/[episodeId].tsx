@@ -61,7 +61,7 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
   const redeemAdReward = useLibraryStore((s) => s.redeemAdReward);
   const balance = useWalletStore((s) => s.balance);
   const isSubscriber = useSubscriptionStore((s) => s.isActive);
-  const { requireAccount, openGate } = useAccountGate();
+  const { isGuest, requireAccount, openGate } = useAccountGate();
   const { t } = useTranslation();
 
   if (episodeLoading || seriesLoading || episodesLoading) {
@@ -80,14 +80,18 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
     );
   }
 
-  /** A locked page: members get the paywall; guests (who can't unlock anything) the link-account gate. */
+  /**
+   * A locked page: members get the paywall. Guests get it too on an ad
+   * episode (with only the ad offered — that unlock is theirs to use); on a
+   * coin or member episode, the link-account gate.
+   */
   const handleLocked = (item: Episode, reason: LockReason) => {
     if (reason === 'account_required') {
-      // The server said so (e.g. today's guest previews are used up), whatever we thought.
-      openGate(item.access === 'free' ? 'preview' : 'paywall');
+      // The server said so, whatever we thought.
+      openGate('paywall');
       return;
     }
-    if (!requireAccount('paywall')) return;
+    if (item.access !== 'ad_unlock' && !requireAccount('paywall')) return;
     setPaywallEpisode(item);
   };
 
@@ -193,6 +197,7 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
         totalEpisodes={episodes.length}
         coinBalance={balance}
         isSubscriber={isSubscriber}
+        adOnly={isGuest}
         onUnlockWithCoins={async () => {
           if (!paywallEpisode) return false;
           return unlockEpisodeWithCoins(paywallEpisode.id);

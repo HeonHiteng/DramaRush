@@ -6,6 +6,7 @@ import { colors } from '@/theme';
 import { supabase } from '@/lib/supabase';
 import { useUserStore, authErrorKey, redirectError } from '@/store';
 import { STORAGE_KEYS } from '@/store/storage';
+import { isGuestSession } from '@/store/AuthListener';
 
 /** Reads and clears the note runOAuthFlow leaves before a web Google-link
  * redirect — the store that started the flow didn't survive the page load. */
@@ -46,7 +47,7 @@ export default function AuthCallbackScreen() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const stillGuest = wasLinking || !!session?.user.is_anonymous;
+      const stillGuest = wasLinking || (!!session && isGuestSession(session));
       const failRoute = stillGuest ? '/auth?mode=upgrade&failed=google' : '/auth';
 
       const providerError = params.error_description || params.error

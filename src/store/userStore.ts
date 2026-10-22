@@ -4,10 +4,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import type { AppUser } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
 import { supabase } from '@/lib/supabase';
 import { DEFAULT_GUEST_NAME } from '@/config';
+import { getDeviceKey } from '@/utils/deviceKey';
 import { asyncStorageAdapter, STORAGE_KEYS } from './storage';
 
 interface UserState {
@@ -100,6 +102,56 @@ export function authErrorKey(error: unknown): TranslationKey {
 export function normalizePhone(phone: string): string {
   const trimmed = phone.trim();
   return (trimmed.startsWith('+') ? '+' : '') + trimmed.replace(/\D/g, '');
+}
+
+/** How long the splash waits for guest-session before settling for an anonymous guest. */
+const GUEST_SESSION_TIMEOUT_MS = 10_000;
+
+interface GuestSessionResponse {
+  access_token?: string;
+  refresh_token?: string;
+}
+
+/**
+ * Signs in as this device's own guest account: the guest-session Edge
+ * Function maps the device key to the same (non-anonymous) guest user every
+ * time, so a reinstall or a sign-out comes back to the same favourites,
+ * history and ad unlocks. Resolves to false — never throws — whenever
+ * that isn't possible (no device key, offline, function down, the per-IP
+ * cap on new guests), and the caller falls back to an anonymous guest.
+ */
+async function signInAsDeviceGuest(): Promise<boolean> {
+  const deviceKey = await getDeviceKey();
+  if (!deviceKey) return false;
+  try {
+    const { data, error } = await supabase.functions.invoke<GuestSessionResponse>('guest-session', {
+      body: { device_key: deviceKey },
+      timeout: GUEST_SESSION_TIMEOUT_MS,
+    });
+    if (error) {
+      const body = error instanceof FunctionsHttpError ? await error.context.json().catch(() => null) : null;
+      if (body?.error === 'guest_limit') console.warn('guest-session: new-guest limit reached, using an anonymous guest');
+      else console.warn('guest-session failed', body?.error ?? error);
+      return false;
+    }
+    if (!data?.access_token || !data.refresh_token) {
+      console.warn('guest-session returned no session');
+      return false;
+    }
+    // Emits SIGNED_IN, which AuthListener handles like any other sign-in.
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+    if (sessionError) {
+      console.warn('guest-session: setSession failed', sessionError);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.warn('guest-session failed', error);
+    return false;
+  }
 }
 
 /** Every sign-in action below (except OAuth, whose multi-step,
@@ -207,12 +259,15 @@ export const useUserStore = create<UserState>()(
       clearAuthError: () => set({ authError: null }),
       setSessionUser: (user) => set({ user }),
 
+      // The device guest first; an anonymous guest (the original behaviour)
+      // when that fails, so nobody is ever stuck outside the app.
       signInAsGuest: () =>
-        runAuthAction(set, () =>
-          supabase.auth.signInAnonymously({
+        runAuthAction(set, async () => {
+          if (await signInAsDeviceGuest()) return { error: null };
+          return supabase.auth.signInAnonymously({
             options: { data: { provider: 'guest', display_name: DEFAULT_GUEST_NAME } },
-          })
-        ),
+          });
+        }),
 
       // Supabase generates the code; its "Send SMS" auth hook hands it to our
       // shared otp-hub service, which delivers it over WhatsApp (Meta Cloud

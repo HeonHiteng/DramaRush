@@ -141,8 +141,6 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   dailyMissionReward: 20,
   adUnlocksPerDay: 20,
   welcomeBonusCoins: 150,
-  guestPreviewSeconds: 15,
-  guestPreviewsPerDay: 20,
 };
 
 const CONFIG_KEYS: Record<string, keyof PublicConfig> = {
@@ -150,8 +148,6 @@ const CONFIG_KEYS: Record<string, keyof PublicConfig> = {
   daily_mission_reward: 'dailyMissionReward',
   ad_unlocks_per_day: 'adUnlocksPerDay',
   welcome_bonus_coins: 'welcomeBonusCoins',
-  guest_preview_seconds: 'guestPreviewSeconds',
-  guest_previews_per_day: 'guestPreviewsPerDay',
 };
 
 /** app_config.value is jsonb: true / 20, or occasionally the same as a JSON string. */
@@ -180,7 +176,7 @@ export async function fetchPublicConfig(): Promise<PublicConfig> {
   return mapPublicConfig((data ?? []) as { key: string; value: unknown }[]);
 }
 
-/** Public server switches (simulated payments, daily reward, preview length, …). */
+/** Public server switches (simulated payments, daily reward, welcome coins, …). */
 export function usePublicConfig() {
   return useQuery({ queryKey: ['public-config'], queryFn: fetchPublicConfig, staleTime: CATALOG_STALE_MS });
 }

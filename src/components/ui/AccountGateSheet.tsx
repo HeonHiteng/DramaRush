@@ -18,7 +18,6 @@ const REASON_KEYS: Record<AccountGateReason, TranslationKey> = {
   membership: 'gate.reason.membership',
   mission: 'gate.reason.mission',
   ad: 'gate.reason.ad',
-  preview: 'gate.reason.preview',
   rpc: 'gate.reason.rpc',
 };
 
@@ -39,7 +38,7 @@ export function AccountGateSheet() {
 
   const welcomeCoins = config?.welcomeBonusCoins ?? DEFAULT_PUBLIC_CONFIG.welcomeBonusCoins;
   const benefits: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string }[] = [
-    { icon: 'play-circle', label: t('gate.benefitFullEpisodes') },
+    { icon: 'lock-open', label: t('gate.benefitUnlockEpisodes') },
     {
       icon: 'sparkles',
       label: t('gate.benefitDailyCoins', { coins: welcomeCoins, unit: BRAND.currency.coinNamePlural.toLowerCase() }),

@@ -19,11 +19,32 @@ function isProvider(value: unknown): value is AuthProvider {
   return typeof value === 'string' && (PROVIDERS as readonly string[]).includes(value);
 }
 
+/** Device guests (the guest-session Edge Function) are ordinary email users
+ * under a synthetic address on this domain — never shown, never a "real"
+ * email sign-in. */
+const DEVICE_GUEST_EMAIL_DOMAIN = '@guest.kbbox.app';
+
+function isDeviceGuestEmail(email: string | undefined): boolean {
+  return !!email && email.toLowerCase().endsWith(DEVICE_GUEST_EMAIL_DOMAIN);
+}
+
+/**
+ * Whether the session belongs to a guest, from the session alone: an
+ * anonymous user, or a device guest that hasn't linked Google or a phone yet
+ * (linking adds that identity; the synthetic email stays). profiles.provider
+ * remains the source of truth once it has loaded.
+ */
+export function isGuestSession(session: Session): boolean {
+  if (session.user.is_anonymous) return true;
+  if (!isDeviceGuestEmail(session.user.email)) return false;
+  return !(session.user.identities ?? []).some((identity) => identity.provider !== 'email');
+}
+
 /** Only used until (or if) the profiles row can't be read: profiles.provider,
  * which the backend keeps in sync with the account's identities, is the
  * source of truth — app_metadata goes stale when a guest links an identity. */
 function sessionProvider(session: Session): AuthProvider {
-  if (session.user.is_anonymous) return 'guest';
+  if (isGuestSession(session)) return 'guest';
   const provider = session.user.app_metadata?.provider;
   return isProvider(provider) && provider !== 'guest' ? provider : 'email';
 }
@@ -36,7 +57,7 @@ function provisionalUser(session: Session): AppUser {
   return {
     id: session.user.id,
     displayName: name,
-    email: session.user.email || undefined,
+    email: (!isDeviceGuestEmail(session.user.email) && session.user.email) || undefined,
     phone: session.user.phone || undefined,
     avatarSeed: name,
     provider,
@@ -87,8 +108,9 @@ function hydrateStores() {
 }
 
 /** A SIGNED_OUT nobody asked for: the refresh token was revoked or the
- * account removed. A guest can't sign back in to the same account, so they
- * get a fresh guest in place; a member is sent to sign in again. */
+ * account removed. A guest is signed back in where they are (a device guest
+ * gets the same account back, an anonymous one a fresh guest); a member is
+ * sent to sign in again. */
 async function recoverFromUnexpectedSignOut(wasGuest: boolean) {
   if (wasGuest) {
     await recoverGuestSession();
@@ -123,7 +145,7 @@ export function startAuthListener(): () => void {
     const prevWasGuest = lastWasGuest;
     const nextUserId = session?.user.id ?? null;
     lastUserId = nextUserId;
-    lastWasGuest = !!session?.user.is_anonymous;
+    lastWasGuest = !!session && isGuestSession(session);
 
     if (!session) {
       if (prevUserId) clearUserData();

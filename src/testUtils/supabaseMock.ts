@@ -6,7 +6,8 @@
  * (20261009150000_lock_down_entitlements.sql, 20261019120000_account_rules.sql):
  * entitlement tables are read-only for clients, coins / unlocks / membership
  * only change through RPCs, every account starts with 0 coins, and guests
- * (anonymous sessions) get 'account_required' from the member-only RPCs.
+ * (anonymous sessions, and device guests from guest-session) get
+ * 'account_required' from the member-only RPCs (everything but ad unlocks).
  * The SQL itself is tested separately against Postgres
  * (DramaRush-Backend/supabase/tests) — this does not replace that.
  */
@@ -34,10 +35,11 @@ const READ_ONLY_TABLES = new Set([
   'subscription_plans',
 ]);
 
-/** The RPCs private.require_member() guards: guests must link an account first. */
+/** The RPCs private.require_member() guards: guests must link an account
+ * first. redeem_ad_reward isn't one — guests may unlock ad episodes (the
+ * daily cap applies to them too). */
 const MEMBER_ONLY_RPCS = new Set([
   'unlock_episode_with_coins',
-  'redeem_ad_reward',
   'claim_daily_mission',
   'simulate_purchase',
   'simulate_subscribe',
@@ -50,8 +52,6 @@ function defaultConfig(): Row[] {
   return [
     { key: 'simulated_payments', value: true, is_public: true },
     { key: 'welcome_bonus_coins', value: 150, is_public: true },
-    { key: 'guest_preview_seconds', value: 15, is_public: true },
-    { key: 'guest_previews_per_day', value: 20, is_public: true },
     { key: 'daily_mission_reward', value: 20, is_public: true },
     { key: 'ad_unlocks_per_day', value: 20, is_public: true },
     { key: 'starting_coins_guest', value: 0, is_public: false },
@@ -132,7 +132,7 @@ export function __setConfig(key: string, value: unknown) {
 /**
  * Who the mock server thinks is calling. `anonymous` marks the account as a
  * guest (an anonymous session): member-only RPCs then raise
- * 'account_required' and playback-token only hands out previews.
+ * 'account_required' and playback-token refuses coin / member episodes.
  */
 export function __setUserId(userId: string | null, opts: { anonymous?: boolean } = {}) {
   state.userId = userId;
@@ -305,8 +305,11 @@ function config<T>(key: string, fallback: T): T {
   return row ? (row.value as T) : fallback;
 }
 
+/** private.is_guest(): an anonymous session, or a device guest (a normal
+ * user whose profile still says provider 'guest'). */
 function isGuest(userId: string): boolean {
-  return anonymousUsers.has(userId);
+  if (anonymousUsers.has(userId)) return true;
+  return deviceGuestUsers.has(userId) && state.tables.profiles?.find((p) => p.user_id === userId)?.provider === 'guest';
 }
 
 /** Postgres interval text as PostgREST returns it ('1 mon', '1 year') -> renewal date. */
@@ -482,9 +485,10 @@ function httpError(status: number, code: string) {
 
 /**
  * playback-token as the real function decides it (authorize_playback): free,
- * unlocked and (for active members) subscriber episodes play; a guest only
- * gets a preview of a free episode — `preview_seconds` plus a token that
- * dies ~15 s after it — and 'account_required' for anything else.
+ * unlocked and (for active members) subscriber episodes play, in full, for
+ * guests too. A guest is told 'not_entitled' on an ad episode they haven't
+ * unlocked (the app offers the ad) and 'account_required' on coin and member
+ * episodes.
  */
 async function playbackToken(body: unknown) {
   const userId = state.userId;
@@ -501,13 +505,8 @@ async function playbackToken(body: unknown) {
     watermark_code: 'TEST234',
   };
 
-  if (isGuest(userId)) {
-    if (episode.access !== 'free') return httpError(403, 'account_required');
-    const previewSeconds = config('guest_preview_seconds', 15);
-    return {
-      data: { ...base, preview_seconds: previewSeconds, expires_at: new Date(Date.now() + (previewSeconds + 15) * 1000).toISOString() },
-      error: null,
-    };
+  if (isGuest(userId) && episode.access !== 'free' && episode.access !== 'ad_unlock') {
+    return httpError(403, 'account_required');
   }
 
   const sub = state.tables.subscriptions.find((s) => s.user_id === userId);
@@ -520,8 +519,34 @@ async function playbackToken(body: unknown) {
   return { data: { ...base, expires_at: new Date(Date.now() + 15 * 60_000).toISOString() }, error: null };
 }
 
+/**
+ * guest-session as the real function answers it: the same device key always
+ * maps to the same (non-anonymous, provider 'guest', 0-coin) user, a new key
+ * makes a new one until the per-IP cap (__setGuestSessionLimit) says 429. It
+ * only returns tokens; the app signs in with auth.setSession().
+ */
+async function guestSession(body: unknown) {
+  const deviceKey = (body as { device_key?: unknown } | null)?.device_key;
+  if (typeof deviceKey !== 'string' || !/^[A-Za-z0-9._-]{8,128}$/.test(deviceKey)) return httpError(400, 'bad_request');
+  let userId = deviceGuests.get(deviceKey);
+  if (!userId) {
+    if (guestSessionLimit !== null && deviceGuests.size >= guestSessionLimit) return httpError(429, 'guest_limit');
+    userId = `device-guest-${deviceGuests.size + 1}`;
+    deviceGuests.set(deviceKey, userId);
+    deviceGuestUsers.add(userId);
+    createAccountRows(userId);
+  }
+  const refreshToken = `refresh-${userId}-${++issuedTokenCounter}`;
+  issuedRefreshTokens.set(refreshToken, userId);
+  return {
+    data: { access_token: `token-${userId}`, refresh_token: refreshToken, expires_in: 3600, user_id: userId },
+    error: null,
+  };
+}
+
 const defaultInvokeHandler: InvokeHandler = async (name, body) => {
   if (name === 'playback-token') return playbackToken(body);
+  if (name === 'guest-session') return guestSession(body);
   return { data: null, error: new Error(`no mock for function ${name}`) };
 };
 
@@ -549,30 +574,57 @@ export interface MockSession {
     created_at: string;
     app_metadata: Record<string, unknown>;
     user_metadata: Record<string, unknown>;
+    identities?: { provider: string }[];
   };
 }
 
 const authListeners = new Set<AuthCallback>();
 const anonymousUsers = new Set<string>();
+/** device_key -> user id, as private.device_guests keeps it. */
+const deviceGuests = new Map<string, string>();
+const deviceGuestUsers = new Set<string>();
+/** Refresh tokens guest-session handed out, redeemable once with setSession. */
+const issuedRefreshTokens = new Map<string, string>();
+let issuedTokenCounter = 0;
+let guestSessionLimit: number | null = null;
 let guestCounter = 0;
 let signOutError: { message: string; status?: number } | null = null;
 
 function resetAuth() {
   authListeners.clear();
   anonymousUsers.clear();
+  deviceGuests.clear();
+  deviceGuestUsers.clear();
+  issuedRefreshTokens.clear();
+  issuedTokenCounter = 0;
+  guestSessionLimit = null;
   guestCounter = 0;
   signOutError = null;
 }
 
+/** guest_new_per_ip_per_day: how many device guests guest-session may create (null = no cap). */
+export function __setGuestSessionLimit(limit: number | null) {
+  guestSessionLimit = limit;
+}
+
+/** device_key -> user id for every device guest created so far. */
+export function __deviceGuests(): Map<string, string> {
+  return new Map(deviceGuests);
+}
+
 export function __makeSession(userId: string, opts: { isAnonymous?: boolean } = {}): MockSession {
+  // A device guest is an email user under the synthetic guest domain.
+  const device = deviceGuestUsers.has(userId);
   return {
     access_token: `token-${userId}`,
     user: {
       id: userId,
       is_anonymous: opts.isAnonymous ?? anonymousUsers.has(userId),
+      ...(device ? { email: `d-${userId}@guest.kbbox.app` } : null),
       created_at: '2026-10-01T00:00:00.000Z',
-      app_metadata: {},
-      user_metadata: {},
+      app_metadata: device ? { provider: 'email', providers: ['email'] } : {},
+      user_metadata: device ? { provider: 'guest', display_name: 'Guest Viewer', device: true } : {},
+      ...(device ? { identities: [{ provider: 'email' }] } : null),
     },
   };
 }
@@ -615,6 +667,16 @@ const auth = {
     const userId = `guest-${++guestCounter}`;
     anonymousUsers.add(userId);
     createAccountRows(userId);
+    state.userId = userId;
+    const session = __makeSession(userId);
+    __emitAuthEvent('SIGNED_IN', session);
+    return { data: { session, user: session.user }, error: null };
+  },
+  /** Only accepts a refresh token guest-session issued (each one once, as GoTrue rotates them). */
+  setSession: async ({ refresh_token }: { access_token: string; refresh_token: string }) => {
+    const userId = issuedRefreshTokens.get(refresh_token);
+    if (!userId) return { data: { session: null, user: null }, error: { message: 'Invalid Refresh Token: Refresh Token Not Found', status: 400 } };
+    issuedRefreshTokens.delete(refresh_token);
     state.userId = userId;
     const session = __makeSession(userId);
     __emitAuthEvent('SIGNED_IN', session);

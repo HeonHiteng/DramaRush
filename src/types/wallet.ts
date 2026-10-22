@@ -39,8 +39,6 @@ export interface PublicConfig {
   dailyMissionReward: number;
   adUnlocksPerDay: number;
   welcomeBonusCoins: number;
-  guestPreviewSeconds: number;
-  guestPreviewsPerDay: number;
 }
 
 /** Outcome of redeem_ad_reward(), so the player can say why nothing unlocked. */

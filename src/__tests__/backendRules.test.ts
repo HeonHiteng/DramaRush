@@ -97,7 +97,7 @@ describe('backend rules: entitlements are server-side only', () => {
   });
 });
 
-describe('backend rules: guests must link an account', () => {
+describe('backend rules: guests must link an account (except for ad unlocks)', () => {
   beforeEach(() => {
     __reset();
     jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -108,7 +108,6 @@ describe('backend rules: guests must link an account', () => {
 
   it.each([
     ['unlock_episode_with_coins', { p_episode_id: 'ep-coin' }],
-    ['redeem_ad_reward', { p_episode_id: 'ep-ad' }],
     ['claim_daily_mission', {}],
     ['simulate_purchase', { p_package_id: 'coins-100' }],
     ['simulate_subscribe', { p_plan_id: 'monthly' }],
@@ -122,12 +121,18 @@ describe('backend rules: guests must link an account', () => {
     const [pkg] = await fetchCoinPackages();
     await useWalletStore.getState().purchasePackage(pkg);
     await useWalletStore.getState().claimDailyMission();
-    await useLibraryStore.getState().redeemAdReward('ep-ad');
+    await useLibraryStore.getState().unlockEpisodeWithCoins('ep-coin');
     await useSubscriptionStore.getState().activate('annual');
     await useWalletStore.getState().hydrateFromServer();
     expect(useWalletStore.getState().balance).toBe(0);
     expect(useSubscriptionStore.getState().isActive).toBe(false);
     expect(__getTable('unlocks')).toHaveLength(0);
+  });
+
+  it('a guest may unlock an ad episode, within the daily cap', async () => {
+    expect(await useLibraryStore.getState().redeemAdReward('ep-ad')).toBe('unlocked');
+    expect(__getTable('unlocks')).toMatchObject([{ user_id: 'guest-1', episode_id: 'ep-ad' }]);
+    expect(useWalletStore.getState().balance).toBe(0);
   });
 
   it('a guest may read the public catalog and config', async () => {
@@ -155,7 +160,6 @@ describe('playback service', () => {
     const first = await fetchPlayback('ep-free');
     const second = await fetchPlayback('ep-free');
     expect(first).toMatchObject({ ok: true, grant: { hlsUrl: okResponse.hls_url, watermarkCode: 'ABC2345' } });
-    expect(first.ok && first.grant.previewSeconds).toBeUndefined();
     expect(second.ok).toBe(true);
     expect(calls).toEqual([['playback-token', { episode_id: 'ep-free' }]]);
 

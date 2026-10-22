@@ -65,8 +65,6 @@ describe('wallet catalog from the database', () => {
       dailyMissionReward: 25,
       adUnlocksPerDay: 20,
       welcomeBonusCoins: 150,
-      guestPreviewSeconds: 15,
-      guestPreviewsPerDay: 20,
     });
   });
 

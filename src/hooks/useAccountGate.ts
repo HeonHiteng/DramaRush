@@ -5,7 +5,7 @@ import { useUserStore } from '@/store/userStore';
  * What a guest tried to do: picks the gate's subtitle. 'rpc' is the
  * catch-all for a server 'account_required' answer nothing else predicted.
  */
-export type AccountGateReason = 'paywall' | 'coins' | 'membership' | 'mission' | 'ad' | 'preview' | 'rpc';
+export type AccountGateReason = 'paywall' | 'coins' | 'membership' | 'mission' | 'ad' | 'rpc';
 
 interface AccountGateState {
   /** Why the "link an account" sheet is open, or null when it's closed. */
@@ -25,7 +25,7 @@ export const useAccountGateStore = create<AccountGateState>()((set) => ({
   close: () => set({ reason: null }),
 }));
 
-/** Guests (anonymous sessions) can browse and preview, but coins, unlocks and memberships need a linked account. */
+/** Guests can browse, watch free episodes and unlock ad episodes, but coins, coin unlocks, memberships and the daily mission need a linked account. */
 export function isGuestUser(): boolean {
   return useUserStore.getState().user?.provider === 'guest';
 }

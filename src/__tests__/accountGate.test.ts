@@ -33,8 +33,8 @@ describe('account gate', () => {
   it('remembers why it was opened (the sheet subtitle) and closes', () => {
     setUser('guest');
     requireAccount('mission');
-    requireAccount('preview');
-    expect(useAccountGateStore.getState().reason).toBe('preview');
+    requireAccount('coins');
+    expect(useAccountGateStore.getState().reason).toBe('coins');
     useAccountGateStore.getState().close();
     expect(useAccountGateStore.getState().reason).toBeNull();
   });

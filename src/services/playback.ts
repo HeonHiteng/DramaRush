@@ -16,18 +16,12 @@ export interface PlaybackGrant {
   expiresAt: number;
   /** The viewer's short code, drawn faintly over the video (leak tracing). */
   watermarkCode: string | null;
-  /**
-   * Guests (anonymous sessions) only get a preview of free episodes: stop at
-   * this many seconds and ask them to link an account. The token itself dies
-   * ~15 s later. Absent for members.
-   */
-  previewSeconds?: number;
 }
 
 export type PlaybackErrorCode =
   | 'not_authenticated'
   | 'not_entitled'
-  /** A guest asked for a non-free episode or used up today's previews: show the link-account gate, not the paywall. */
+  /** A guest asked for a coin or member episode: show the link-account gate, not the paywall. */
   | 'account_required'
   | 'unavailable'
   | 'rate_limited'
@@ -40,7 +34,6 @@ export type PlaybackResult = { ok: true; grant: PlaybackGrant } | { ok: false; c
 
 /** Treat a token as expired this long before it really is, so playback never starts on a dying token. */
 const EXPIRY_MARGIN_MS = 60_000;
-const PREVIEW_EXPIRY_MARGIN_MS = 3_000;
 
 const KNOWN_CODES: PlaybackErrorCode[] = [
   'not_authenticated',
@@ -55,16 +48,9 @@ const KNOWN_CODES: PlaybackErrorCode[] = [
 
 const cache = new Map<string, PlaybackGrant>();
 
-/**
- * Whether `grant` can still start or resume playback. A preview token only
- * lives ~30 s, so the minute-long margin would rule it out before it is
- * even used: the page holding it may resume it until just before expiry
- * (fetchPlayback still never reuses one — see below).
- */
+/** Whether `grant` can still start or resume playback. */
 export function isGrantFresh(grant: PlaybackGrant | null | undefined): grant is PlaybackGrant {
-  if (!grant) return false;
-  const margin = grant.previewSeconds !== undefined ? PREVIEW_EXPIRY_MARGIN_MS : EXPIRY_MARGIN_MS;
-  return grant.expiresAt - margin > Date.now();
+  return !!grant && grant.expiresAt - EXPIRY_MARGIN_MS > Date.now();
 }
 
 /**
@@ -94,13 +80,8 @@ export async function fetchPlayback(episodeId: string, { force = false } = {}): 
     thumbnailUrl: data.thumbnail_url,
     expiresAt: Date.parse(data.expires_at),
     watermarkCode: data.watermark_code ?? null,
-    ...(typeof data.preview_seconds === 'number' ? { previewSeconds: data.preview_seconds } : null),
   };
-  // A preview token lives ~30 s, so it would never pass the 60 s margin a
-  // cached grant needs (every later call would refetch anyway) — and the
-  // backend asks for a new one each time. Only members' grants are cached.
-  if (grant.previewSeconds === undefined) cache.set(episodeId, grant);
-  else cache.delete(episodeId);
+  cache.set(episodeId, grant);
   return { ok: true, grant };
 }
 

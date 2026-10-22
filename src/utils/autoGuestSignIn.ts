@@ -2,7 +2,8 @@ import { router } from 'expo-router';
 import { useUserStore } from '@/store';
 
 /**
- * Signs the device in as a guest (an anonymous Supabase user) and navigates
+ * Signs the device in as a guest (its device guest account, or an anonymous
+ * Supabase user when that isn't available — see signInAsGuest) and navigates
  * into the app — instead of making every new user face a sign-in decision
  * before they've seen a single episode. Falls back to the auth screen only if
  * guest sign-in itself fails (e.g. anonymous auth disabled, no network), so
@@ -20,10 +21,11 @@ export async function autoGuestSignIn() {
 }
 
 /**
- * The guest's session died underneath them (see AuthListener): start a new
- * guest where they are rather than bouncing them through the splash — the old
- * guest account can't be signed back into anyway. Only a failed sign-in
- * leaves the current screen.
+ * The guest's session died underneath them (see AuthListener): sign the guest
+ * back in where they are rather than bouncing them through the splash. A
+ * device guest gets the same account back; an anonymous one can't be signed
+ * back into, so it becomes a new guest. Only a failed sign-in leaves the
+ * current screen.
  */
 export async function recoverGuestSession() {
   const ok = await useUserStore.getState().signInAsGuest();

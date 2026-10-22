@@ -209,11 +209,13 @@ describe('library: rewarded-ad unlocks', () => {
     expect(useLibraryStore.getState().isUnlocked('ep-ad')).toBe(false);
   });
 
-  it('tells guests to link an account, and other errors apart', async () => {
+  it('lets guests unlock ad episodes but not spend coins, and tells other errors apart', async () => {
     expect(await useLibraryStore.getState().redeemAdReward('ep-coin')).toBe('failed');
     signInAs('guest-1', 'guest');
-    expect(await useLibraryStore.getState().redeemAdReward('ep-ad')).toBe('account_required');
     expect(await useLibraryStore.getState().unlockEpisodeWithCoins('ep-coin')).toBe(false);
     expect(__getTable('unlocks')).toHaveLength(0);
+    expect(await useLibraryStore.getState().redeemAdReward('ep-ad')).toBe('unlocked');
+    expect(useLibraryStore.getState().isUnlocked('ep-ad')).toBe(true);
+    expect(__getTable('unlocks')).toMatchObject([{ user_id: 'guest-1', episode_id: 'ep-ad' }]);
   });
 });
