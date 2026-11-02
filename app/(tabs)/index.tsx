@@ -9,7 +9,6 @@ import { PosterRailSkeleton, SkeletonBlock } from '@/components/ui/LoadingSkelet
 import { HeroCarousel, PosterCard, SeriesRail } from '@/components/media';
 import { BRAND } from '@/config';
 import {
-  getCompletedSeries,
   getFreeToWatch,
   getHeroSeries,
   getNewReleases,
@@ -21,6 +20,14 @@ import {
 import { useSeries, useEpisodes } from '@/services/content';
 import { useContinueWatching } from '@/hooks/useContinueWatching';
 import { useTranslation } from '@/i18n/useTranslation';
+import type { Genre } from '@/types';
+
+/** The category promoted into the main rows, right after "Free to Watch". */
+const FEATURED_GENRE: Genre = 'AI Drama';
+
+function openCategory(genre: Genre) {
+  router.navigate({ pathname: '/discover', params: { genre, at: String(Date.now()) } });
+}
 
 export default function HomeScreen() {
   const seriesQuery = useSeries();
@@ -102,12 +109,14 @@ export default function HomeScreen() {
         <SeriesRail title={t('home.newReleases')} series={getNewReleases(series)} />
         <SeriesRail title={t('home.recommendedForYou')} series={getRecommendedForYou(series)} />
         <SeriesRail title={t('home.freeToWatch')} series={getFreeToWatch(series, episodes)} />
-        <SeriesRail title={t('home.completedSeries')} series={getCompletedSeries(series)} />
+        <SeriesRail title={FEATURED_GENRE} series={getSeriesByGenre(series, FEATURED_GENRE)} onSeeAll={() => openCategory(FEATURED_GENRE)} />
 
         {GENRES.map((genre) => {
+          // Already shown above, with the main rows.
+          if (genre === FEATURED_GENRE) return null;
           const list = getSeriesByGenre(series, genre);
           if (list.length === 0) return null;
-          return <SeriesRail key={genre} title={`${genre} Picks`} series={list} />;
+          return <SeriesRail key={genre} title={genre} series={list} onSeeAll={() => openCategory(genre)} />;
         })}
 
         <View style={{ height: spacing.xxl }} />

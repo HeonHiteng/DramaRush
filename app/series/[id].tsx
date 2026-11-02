@@ -3,13 +3,16 @@ import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, Style
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, gradients, radius, spacing, typography } from '@/theme';
+import { Screen } from '@/components/ui/Screen';
 import { StackHeader } from '@/components/ui/StackHeader';
 import { AppButton } from '@/components/ui/AppButton';
 import { EpisodeRow, PosterArt, PosterCard } from '@/components/media';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { usePosterGridCardWidth } from '@/hooks/usePosterGridCardWidth';
 import { getNextEpisode } from '@/utils/nextEpisode';
+import { languageName } from '@/utils/languageName';
 import { getSimilarSeries } from '@/data';
 import { useSeries, useSeriesById, useEpisodesForSeries } from '@/services/content';
 import { useLibraryStore } from '@/store';
@@ -30,21 +33,26 @@ export default function SeriesDetailScreen() {
   const { t } = useTranslation();
   const [tab, setTab] = useState<DetailTab>('episodes');
   const gridCardWidth = usePosterGridCardWidth();
+  const insets = useSafeAreaInsets();
 
   if (seriesLoading || episodesLoading) {
     return (
-      <View style={[styles.root, styles.centered]}>
-        <ActivityIndicator color={colors.accent} />
-      </View>
+      <Screen>
+        {/* Back stays available even if loading is slow or never finishes. */}
+        <StackHeader title="" />
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      </Screen>
     );
   }
 
   if (!series) {
     return (
-      <View style={styles.root}>
+      <Screen>
         <StackHeader title={t('series.headerTitle')} />
         <EmptyState fill icon="alert-circle-outline" title={t('series.notFound')} />
-      </View>
+      </Screen>
     );
   }
 
@@ -84,24 +92,23 @@ export default function SeriesDetailScreen() {
                 seamless surface instead of a visible horizontal seam. */}
             <LinearGradient colors={['transparent', colors.bg]} locations={[0.55, 1]} style={StyleSheet.absoluteFill} />
           </LinearGradient>
-          <View style={styles.headerOverlay}>
-            <StackHeader title="" overlay />
-          </View>
         </View>
 
         <View style={styles.content}>
           <Text style={styles.title}>{series.title}</Text>
 
           <View style={styles.metaRow}>
-            <View style={styles.ratingChip}>
-              <Ionicons name="star" size={12} color={colors.gold} />
-              <Text style={styles.ratingText}>{series.rating.toFixed(1)}</Text>
-            </View>
+            {series.rating > 0 && (
+              <View style={styles.ratingChip}>
+                <Ionicons name="star" size={12} color={colors.gold} />
+                <Text style={styles.ratingText}>{series.rating.toFixed(1)}</Text>
+              </View>
+            )}
             <Text style={styles.metaText}>{series.status === 'completed' ? t('series.completed') : t('series.ongoing')}</Text>
             <Text style={styles.metaDot}>·</Text>
             <Text style={styles.metaText}>{t('series.episodesCount', { count: episodes.length })}</Text>
             <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.metaText}>{series.language}</Text>
+            <Text style={styles.metaText}>{languageName(series.language)}</Text>
           </View>
 
           <View style={styles.genreRow}>
@@ -112,15 +119,28 @@ export default function SeriesDetailScreen() {
             ))}
           </View>
 
-          <AppButton
-            label={hasStarted ? t('series.continueWatching') : t('series.startWatching')}
-            onPress={() => nextEpisode && router.push(`/player/${nextEpisode.id}`)}
-            variant="primary"
-            size="lg"
-            fullWidth
-            icon={<Ionicons name="play" size={18} color={colors.textInverse} />}
-            style={styles.playButton}
-          />
+          {nextEpisode ? (
+            <AppButton
+              label={hasStarted ? t('series.continueWatching') : t('series.startWatching')}
+              onPress={() => router.push(`/player/${nextEpisode.id}`)}
+              variant="primary"
+              size="lg"
+              fullWidth
+              icon={<Ionicons name="play" size={18} color={colors.textInverse} />}
+              style={styles.playButton}
+            />
+          ) : (
+            <AppButton
+              label={t('series.comingSoon')}
+              onPress={() => {}}
+              variant="secondary"
+              size="lg"
+              fullWidth
+              disabled
+              icon={<Ionicons name="time-outline" size={18} color={colors.textPrimary} />}
+              style={styles.playButton}
+            />
+          )}
 
           <Text style={styles.synopsis}>{series.synopsis}</Text>
 
@@ -155,6 +175,7 @@ export default function SeriesDetailScreen() {
 
           {tab === 'episodes' ? (
             <View style={styles.episodeList}>
+              {episodes.length === 0 && <EmptyState icon="time-outline" title={t('series.noEpisodes')} />}
               {episodes.map((ep) => {
                 const epProgress = progress[ep.id];
                 return (
@@ -187,6 +208,12 @@ export default function SeriesDetailScreen() {
         </View>
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
+      {/* Pinned over the page (not inside the scroll) so back stays reachable
+          while scrolling, and pushed below the status bar / notch: the banner
+          art itself still runs edge to edge behind it. */}
+      <View style={[styles.headerOverlay, { paddingTop: insets.top }]}>
+        <StackHeader title="" overlay />
+      </View>
     </View>
   );
 }
@@ -219,11 +246,11 @@ function DetailTabButton({ label, active, onPress }: { label: string; active: bo
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  centered: { alignItems: 'center', justifyContent: 'center' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { paddingBottom: spacing.xl },
   bannerWrap: { height: 320 },
   banner: { flex: 1 },
-  headerOverlay: { position: 'absolute', top: 0, left: 0, right: 0 },
+  headerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, pointerEvents: 'box-none' },
   content: { paddingHorizontal: spacing.lg, marginTop: -spacing.xl },
   title: { ...typography.h1, color: colors.textPrimary, marginBottom: spacing.xs },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },

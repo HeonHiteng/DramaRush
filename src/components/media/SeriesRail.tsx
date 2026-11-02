@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { colors, spacing, typography } from '@/theme';
 import { PosterCard } from './PosterCard';
 import { useLibraryStore } from '@/store';
+import { useTranslation } from '@/i18n/useTranslation';
 import type { Series } from '@/types';
 
 interface SeriesRailProps {
@@ -19,6 +20,7 @@ interface SeriesRailProps {
 export function SeriesRail({ title, series, onSeeAll, ranked = false }: SeriesRailProps) {
   const favoriteSeriesIds = useLibraryStore((s) => s.favoriteSeriesIds);
   const toggleFavorite = useLibraryStore((s) => s.toggleFavorite);
+  const { t } = useTranslation();
 
   if (series.length === 0) return null;
 
@@ -28,7 +30,7 @@ export function SeriesRail({ title, series, onSeeAll, ranked = false }: SeriesRa
         <Text style={styles.title}>{title}</Text>
         {onSeeAll && (
           <Pressable onPress={onSeeAll} hitSlop={8} accessibilityRole="button" accessibilityLabel={`See all ${title}`}>
-            <Text style={styles.seeAll}>See all</Text>
+            <Text style={styles.seeAll}>{t('common.seeAll')}</Text>
           </Pressable>
         )}
       </View>
@@ -80,6 +82,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: 'rgba(255,255,255,0.35)',
     marginRight: -16,
+    // Height of the poster's caption, so the number sits on the poster's
+    // bottom edge instead of running into the title below it.
+    marginBottom: 45,
   },
   rankedPoster: { zIndex: 1 },
 });

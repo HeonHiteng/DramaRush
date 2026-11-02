@@ -186,7 +186,7 @@ function TopSearchRow({ series, playLabel, onOpen, onPlay }: TopSearchRowProps) 
             {series.title}
           </Text>
           <Text style={styles.topRowSubtitle} numberOfLines={1}>
-            {series.genres.join(' · ')} · ★ {series.rating.toFixed(1)}
+            {[...series.genres, ...(series.rating > 0 ? [`★ ${series.rating.toFixed(1)}`] : [])].join(' · ')}
           </Text>
         </View>
       </Pressable>

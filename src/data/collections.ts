@@ -21,10 +21,6 @@ export function getFreeToWatch(series: Series[], episodes: Episode[]): Series[] 
   return series.filter((s) => freeSeriesIds.has(s.id));
 }
 
-export function getCompletedSeries(series: Series[]): Series[] {
-  return series.filter((s) => s.status === 'completed');
-}
-
 export function getHeroSeries(series: Series[]): Series[] {
   return byPopularityDesc(series).slice(0, 5);
 }

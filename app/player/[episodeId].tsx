@@ -3,6 +3,8 @@ import { ActivityIndicator, Alert, FlatList, Platform, StyleSheet, View } from '
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors } from '@/theme';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { Screen } from '@/components/ui/Screen';
+import { StackHeader } from '@/components/ui/StackHeader';
 import { PaywallSheet } from '@/components/ui/PaywallSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PlayerPage } from '@/features/player/PlayerPage';
@@ -49,9 +51,13 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
 
   if (episodeLoading || seriesLoading || episodesLoading) {
     return (
-      <View style={[styles.notFoundRoot, styles.root]}>
-        <ActivityIndicator color={colors.accent} />
-      </View>
+      <Screen background={colors.black}>
+        {/* Back stays available even if loading is slow or never finishes. */}
+        <StackHeader title="" />
+        <View style={styles.loadingBody}>
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      </Screen>
     );
   }
 
@@ -183,4 +189,5 @@ function PlayerScreenInner({ episodeId }: { episodeId: string }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.black },
   notFoundRoot: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  loadingBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

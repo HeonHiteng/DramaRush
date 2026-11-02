@@ -15,7 +15,7 @@ export default function LanguageSettingsScreen() {
 
   return (
     <Screen>
-      <StackHeader title={t('language.title')} />
+      <StackHeader title={t('language.title')} fallback="/(tabs)/profile" />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.group}>
           {LANGUAGES.map((lang, i) => (

@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { PosterCard } from '@/components/media';
@@ -14,6 +14,7 @@ import { useLibraryStore } from '@/store';
 import { usePosterGridCardWidth } from '@/hooks/usePosterGridCardWidth';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useTranslation } from '@/i18n/useTranslation';
+import { languageName } from '@/utils/languageName';
 import type { TranslationKey } from '@/i18n/translations';
 import type { Episode, Series } from '@/types';
 
@@ -55,6 +56,14 @@ export default function DiscoverScreen() {
   const [picker, setPicker] = useState<PickerKind | null>(null);
   const cardWidth = usePosterGridCardWidth(GRID_COLUMNS);
   const { t } = useTranslation();
+
+  // Home's "See all" links open this tab as /discover?genre=…&at=…. The tab
+  // stays mounted between visits, so apply the category on every arrival:
+  // `at` changes on each tap, even when the same category is tapped twice.
+  const { genre: genreParam, at: arrivedAt } = useLocalSearchParams<{ genre?: string; at?: string }>();
+  useEffect(() => {
+    if (genreParam && (GENRES as string[]).includes(genreParam)) setGenre(genreParam);
+  }, [genreParam, arrivedAt]);
 
   const loading = seriesLoading || episodesLoading;
   const allSeries = series ?? EMPTY_SERIES;
@@ -113,7 +122,7 @@ export default function DiscoverScreen() {
         <FilterPill label={t(ACCESS_LABEL_KEYS[access])} active={access !== 'all'} onPress={() => setPicker('access')} />
         <FilterPill label={t(STATUS_LABEL_KEYS[status])} active={status !== 'all'} onPress={() => setPicker('status')} />
         {languages.length > 1 && (
-          <FilterPill label={language ?? t('discover.anyLanguage')} active={language !== null} onPress={() => setPicker('language')} />
+          <FilterPill label={language ? languageName(language) : t('discover.anyLanguage')} active={language !== null} onPress={() => setPicker('language')} />
         )}
       </ScrollView>
 
@@ -178,7 +187,7 @@ export default function DiscoverScreen() {
       />
       <OptionPickerModal
         visible={picker === 'language'}
-        options={[{ value: null, label: t('discover.anyLanguage') }, ...languages.map((l) => ({ value: l as string | null, label: l }))]}
+        options={[{ value: null, label: t('discover.anyLanguage') }, ...languages.map((l) => ({ value: l as string | null, label: languageName(l) }))]}
         selected={language}
         onSelect={setLanguage}
         onClose={closePicker}
@@ -231,8 +240,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceRaised,
   },
   pillActive: { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
   pillText: { ...typography.bodyMedium, color: colors.textPrimary },
@@ -243,8 +251,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceRaised,
   },
   sortRow: {
     flexDirection: 'row',

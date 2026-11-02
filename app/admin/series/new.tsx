@@ -13,7 +13,7 @@ export default function NewSeriesScreen() {
 
   return (
     <Screen>
-      <StackHeader title="New Series" />
+      <StackHeader title="New Series" fallback="/admin" />
       {error && <Text style={{ color: colors.danger, ...typography.caption, paddingHorizontal: spacing.md }}>{error}</Text>}
       <AdminSeriesForm
         submitLabel="Create Series"

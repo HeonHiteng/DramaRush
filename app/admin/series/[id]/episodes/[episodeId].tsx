@@ -18,7 +18,7 @@ export default function EditEpisodeScreen() {
   if (isLoading) {
     return (
       <Screen>
-        <StackHeader title="Edit Episode" />
+        <StackHeader title="Edit Episode" fallback={`/admin/series/${seriesId}`} />
         <ActivityIndicator style={{ marginTop: spacing.xxl }} color={colors.accent} />
       </Screen>
     );
@@ -27,7 +27,7 @@ export default function EditEpisodeScreen() {
   if (!episode || !seriesId) {
     return (
       <Screen>
-        <StackHeader title="Edit Episode" />
+        <StackHeader title="Edit Episode" fallback={`/admin/series/${seriesId}`} />
         <EmptyState icon="alert-circle-outline" title="Episode not found" />
       </Screen>
     );
@@ -35,7 +35,7 @@ export default function EditEpisodeScreen() {
 
   return (
     <Screen>
-      <StackHeader title={`EP${episode.number} · ${episode.title}`} />
+      <StackHeader title={`EP${episode.number} · ${episode.title}`} fallback={`/admin/series/${seriesId}`} />
       {error && <Text style={{ color: colors.danger, ...typography.caption, paddingHorizontal: spacing.md }}>{error}</Text>}
       <AdminEpisodeForm
         seriesId={seriesId}

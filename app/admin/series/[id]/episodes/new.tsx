@@ -20,7 +20,7 @@ export default function NewEpisodeScreen() {
 
   return (
     <Screen>
-      <StackHeader title="New Episode" />
+      <StackHeader title="New Episode" fallback={`/admin/series/${seriesId}`} />
       {error && <Text style={{ color: colors.danger, ...typography.caption, paddingHorizontal: spacing.md }}>{error}</Text>}
       <AdminEpisodeForm
         seriesId={seriesId}
