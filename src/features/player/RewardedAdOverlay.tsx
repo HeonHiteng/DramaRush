@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing, typography } from '@/theme';
@@ -7,18 +7,28 @@ import { AppButton } from '@/components/ui/AppButton';
 import { BRAND } from '@/config';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useTranslation } from '@/i18n/useTranslation';
+import type { TranslationKey } from '@/i18n/translations';
 
 const AD_DURATION_SEC = 5;
 
 interface RewardedAdOverlayProps {
   visible: boolean;
-  onRewardEarned: () => void;
+  /**
+   * Runs when the countdown ends and claims the reward from the server.
+   * Resolve to null when it was granted, or to an i18n key saying why not
+   * (daily cap reached, connection failed) — shown instead of "Reward earned!".
+   */
+  onRewardEarned: () => Promise<TranslationKey | null> | void;
   onClose: () => void;
 }
+
+/** 'pending' while the server is asked; then granted, or the reason it wasn't. */
+type Outcome = 'pending' | 'granted' | TranslationKey;
 
 export function RewardedAdOverlay({ visible, onRewardEarned, onClose }: RewardedAdOverlayProps) {
   const [secondsLeft, setSecondsLeft] = useState(AD_DURATION_SEC);
   const [rewardGranted, setRewardGranted] = useState(false);
+  const [outcome, setOutcome] = useState<Outcome>('pending');
   const { success } = useHaptics();
   const { t } = useTranslation();
 
@@ -26,6 +36,7 @@ export function RewardedAdOverlay({ visible, onRewardEarned, onClose }: Rewarded
     if (!visible) {
       setSecondsLeft(AD_DURATION_SEC);
       setRewardGranted(false);
+      setOutcome('pending');
       return;
     }
     const timer = setInterval(() => {
@@ -43,8 +54,15 @@ export function RewardedAdOverlay({ visible, onRewardEarned, onClose }: Rewarded
   useEffect(() => {
     if (visible && secondsLeft === 0 && !rewardGranted) {
       setRewardGranted(true);
-      success();
-      onRewardEarned();
+      Promise.resolve(onRewardEarned())
+        .catch((err) => {
+          console.warn('reward claim failed', err);
+          return 'player.adFailed' as const;
+        })
+        .then((failure) => {
+          setOutcome(failure ?? 'granted');
+          if (!failure) success();
+        });
     }
   }, [secondsLeft, visible, rewardGranted, success, onRewardEarned]);
 
@@ -78,10 +96,19 @@ export function RewardedAdOverlay({ visible, onRewardEarned, onClose }: Rewarded
           </View>
         ) : (
           <View style={styles.footer}>
-            <View style={styles.rewardBadge}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-              <Text style={styles.rewardText}>{t('ad.rewardEarned')}</Text>
-            </View>
+            {outcome === 'pending' ? (
+              <ActivityIndicator color={colors.info} />
+            ) : outcome === 'granted' ? (
+              <View style={styles.rewardBadge}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <Text style={styles.rewardText}>{t('ad.rewardEarned')}</Text>
+              </View>
+            ) : (
+              <View style={styles.rewardBadge}>
+                <Ionicons name="alert-circle" size={20} color={colors.danger} />
+                <Text style={styles.failureText}>{t(outcome)}</Text>
+              </View>
+            )}
             <AppButton label={t('ad.close')} onPress={onClose} variant="secondary" style={styles.closeButton} />
           </View>
         )}
@@ -115,7 +142,8 @@ const styles = StyleSheet.create({
   },
   countdownText: { ...typography.h2, color: colors.textPrimary },
   footerHint: { ...typography.caption, color: colors.textTertiary },
-  rewardBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  rewardBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, maxWidth: 320 },
   rewardText: { ...typography.h3, color: colors.success },
+  failureText: { ...typography.body, color: colors.danger, textAlign: 'center', flexShrink: 1 },
   closeButton: { minWidth: 160 },
 });

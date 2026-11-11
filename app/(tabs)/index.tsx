@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,24 +6,14 @@ import { router } from 'expo-router';
 import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { PosterRailSkeleton, SkeletonBlock } from '@/components/ui/LoadingSkeleton';
+import { LinkAccountBanner } from '@/components/ui/LinkAccountBanner';
 import { HeroCarousel, PosterCard, SeriesRail } from '@/components/media';
 import { BRAND } from '@/config';
-import {
-  getFreeToWatch,
-  getHeroSeries,
-  getNewReleases,
-  getRecommendedForYou,
-  getSeriesByGenre,
-  getTrendingNow,
-  GENRES,
-} from '@/data';
+import { buildHomeRails, homeDateKey } from '@/data';
 import { useSeries, useEpisodes } from '@/services/content';
 import { useContinueWatching } from '@/hooks/useContinueWatching';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { Genre } from '@/types';
-
-/** The category promoted into the main rows, right after "Free to Watch". */
-const FEATURED_GENRE: Genre = 'AI Drama';
 
 function openCategory(genre: Genre) {
   router.navigate({ pathname: '/discover', params: { genre, at: String(Date.now()) } });
@@ -36,8 +26,13 @@ export default function HomeScreen() {
   const { t } = useTranslation();
 
   const loading = seriesQuery.isLoading || episodesQuery.isLoading;
-  const series = seriesQuery.data ?? [];
   const episodes = episodesQuery.data ?? [];
+  // Each series shows in at most one rail; "Recommended" reshuffles once a day.
+  const today = homeDateKey();
+  const rails = useMemo(
+    () => buildHomeRails(seriesQuery.data ?? [], episodesQuery.data ?? [], { date: today }),
+    [seriesQuery.data, episodesQuery.data, today],
+  );
 
   const onRefresh = () => {
     seriesQuery.refetch();
@@ -79,7 +74,10 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <HeroCarousel series={getHeroSeries(series)} episodes={episodes} />
+        {/* Guests only; renders nothing otherwise. */}
+        <LinkAccountBanner />
+
+        <HeroCarousel series={rails.hero} episodes={episodes} />
 
         {continueWatching.length > 0 && (
           <View style={styles.section}>
@@ -103,21 +101,23 @@ export default function HomeScreen() {
           </View>
         )}
 
+        <SeriesRail title={rails.lead.genre} series={rails.lead.series} onSeeAll={() => openCategory(rails.lead.genre)} />
+
         <MembershipBanner />
 
-        <SeriesRail title={t('home.trendingNow')} series={getTrendingNow(series)} ranked />
-        <SeriesRail title={t('home.newReleases')} series={getNewReleases(series)} />
-        <SeriesRail title={t('home.recommendedForYou')} series={getRecommendedForYou(series)} />
-        <SeriesRail title={t('home.freeToWatch')} series={getFreeToWatch(series, episodes)} />
-        <SeriesRail title={FEATURED_GENRE} series={getSeriesByGenre(series, FEATURED_GENRE)} onSeeAll={() => openCategory(FEATURED_GENRE)} />
+        <SeriesRail title={t('home.trendingNow')} series={rails.trending} ranked />
+        <SeriesRail title={t('home.newReleases')} series={rails.newReleases} />
+        <SeriesRail title={t('home.recommendedForYou')} series={rails.recommended} />
+        <SeriesRail title={t('home.freeToWatch')} series={rails.free} />
+        <SeriesRail
+          title={rails.featured.genre}
+          series={rails.featured.series}
+          onSeeAll={() => openCategory(rails.featured.genre)}
+        />
 
-        {GENRES.map((genre) => {
-          // Already shown above, with the main rows.
-          if (genre === FEATURED_GENRE) return null;
-          const list = getSeriesByGenre(series, genre);
-          if (list.length === 0) return null;
-          return <SeriesRail key={genre} title={genre} series={list} onSeeAll={() => openCategory(genre)} />;
-        })}
+        {rails.genres.map(({ genre, series: list }) => (
+          <SeriesRail key={genre} title={genre} series={list} onSeeAll={() => openCategory(genre)} />
+        ))}
 
         <View style={{ height: spacing.xxl }} />
       </ScrollView>

@@ -11,10 +11,12 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { colors, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { FRAME_WIDTH } from '@/components/ui/WebFrame';
 import { useUserStore } from '@/store';
+import { supabase } from '@/lib/supabase';
 import { BRAND } from '@/config';
 import { useTranslation } from '@/i18n/useTranslation';
 import { autoGuestSignIn } from '@/utils/autoGuestSignIn';
@@ -84,10 +86,21 @@ export default function OnboardingScreen() {
     if (finishing) return;
     setFinishing(true);
     completeOnboarding();
+    // A session can outlive the onboarding flag (e.g. local app data
+    // cleared but the auth session kept): reuse it rather than replacing a
+    // real account with a new guest. getSession() waits for the client to
+    // finish restoring, so "no session" here really means none.
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session) {
+      router.replace('/(tabs)');
+      return;
+    }
     // Signs the device in as a guest and navigates straight into the app —
     // no separate sign-in screen for a brand-new user to get through first.
-    // Email/Google/staying-a-guest are still all available afterward, from
-    // Profile. See autoGuestSignIn for the fallback if this fails.
+    // Linking Google/WhatsApp is available afterward, from Profile. See
+    // autoGuestSignIn for the fallback if this fails.
     await autoGuestSignIn();
   };
 
@@ -105,7 +118,7 @@ export default function OnboardingScreen() {
         disabled={finishing}
         style={styles.skip}
         accessibilityRole="button"
-        accessibilityLabel="Skip onboarding"
+        accessibilityLabel={t('onboarding.skipLabel')}
       >
         <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
       </Pressable>

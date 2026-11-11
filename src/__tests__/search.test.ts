@@ -1,4 +1,9 @@
+jest.mock('@/lib/supabase', () => require('../testUtils/supabaseMock'));
+
+import { __getTable, __reset, __setQueryError, __setUserId } from '../testUtils/supabaseMock';
 import { matchesQuery, searchSeries } from '@/utils/search';
+import { dedupeSearches, useSearchStore } from '@/store/searchStore';
+import { useUserStore } from '@/store/userStore';
 import type { Series } from '@/types';
 
 const FIXTURE_SERIES: Series[] = [
@@ -63,5 +68,48 @@ describe('search filtering', () => {
   it('returns false for an empty/whitespace query', () => {
     expect(matchesQuery(FIXTURE_SERIES[0], '')).toBe(false);
     expect(matchesQuery(FIXTURE_SERIES[0], '   ')).toBe(false);
+  });
+});
+
+describe('recent searches', () => {
+  beforeEach(() => {
+    __reset();
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    __setUserId('test-user-1');
+    useUserStore.setState({
+      user: { id: 'test-user-1', displayName: 'Tester', provider: 'google', avatarSeed: 'Tester', createdAt: '', isAdmin: false },
+    });
+    useSearchStore.getState().resetLocal();
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('de-duplicates case-insensitively, newest first', () => {
+    expect(dedupeSearches(['Crimson', 'glitch', 'crimson ', 'CRIMSON', 'Glitch', 'ever'])).toEqual(['Crimson', 'glitch', 'ever']);
+  });
+
+  it('hydrates one entry per query even though every search is stored as a row', async () => {
+    const rows = ['Crimson', 'crimson', 'Glitch', 'CRIMSON', 'ever after'];
+    __getTable('recent_searches').push(...rows.map((query) => ({ user_id: 'test-user-1', query })));
+    await useSearchStore.getState().hydrateFromServer();
+    expect(useSearchStore.getState().recentSearches).toEqual(['Crimson', 'Glitch', 'ever after']);
+  });
+
+  it('keeps the list when the read fails', async () => {
+    useSearchStore.getState().addRecent('crimson');
+    __setQueryError('recent_searches', { message: 'offline' });
+    await useSearchStore.getState().hydrateFromServer();
+    expect(useSearchStore.getState().recentSearches).toEqual(['crimson']);
+    expect(useSearchStore.getState().hydrateError).toBe('offline');
+  });
+
+  it('records searches for the signed-in user', () => {
+    useSearchStore.getState().addRecent('  Glitch ');
+    useSearchStore.getState().addRecent('glitch');
+    expect(useSearchStore.getState().recentSearches).toEqual(['glitch']);
+    expect(__getTable('recent_searches').map((r) => [r.user_id, r.query])).toEqual([
+      ['test-user-1', 'Glitch'],
+      ['test-user-1', 'glitch'],
+    ]);
   });
 });

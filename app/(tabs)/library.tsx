@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -11,6 +11,7 @@ import { useSeries, useEpisodes } from '@/services/content';
 import { useLibraryStore } from '@/store';
 import { useContinueWatching } from '@/hooks/useContinueWatching';
 import { usePosterGridCardWidth } from '@/hooks/usePosterGridCardWidth';
+import { useRefreshOnForeground } from '@/hooks/useRefreshOnForeground';
 import { formatRelativeDate } from '@/utils/format';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { Series } from '@/types';
@@ -27,6 +28,8 @@ export default function LibraryScreen() {
   const removeHistoryEntry = useLibraryStore((s) => s.removeHistoryEntry);
   const clearHistory = useLibraryStore((s) => s.clearHistory);
   const gridCardWidth = usePosterGridCardWidth();
+  // Unlocks / favourites made on another device show up when coming back here.
+  useRefreshOnForeground(useCallback((maxAgeMs: number) => void useLibraryStore.getState().refreshIfStale(maxAgeMs), []));
 
   const seriesById = useMemo(() => new Map(allSeries.map((s) => [s.id, s])), [allSeries]);
   const episodeById = useMemo(() => new Map(allEpisodes.map((e) => [e.id, e])), [allEpisodes]);

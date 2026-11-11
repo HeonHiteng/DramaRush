@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,7 +11,7 @@ import { PremiumBadge } from '@/components/ui/PremiumBadge';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppModal } from '@/components/ui/AppModal';
 import { SeriesRail } from '@/components/media';
-import { BRAND } from '@/config';
+import { BRAND, DEFAULT_GUEST_NAME, DEFAULT_MEMBER_NAME } from '@/config';
 import { useSeries } from '@/services/content';
 import {
   useUserStore,
@@ -19,6 +19,7 @@ import {
   useSubscriptionStore,
   useLibraryStore,
   resetPrototype,
+  deleteAccount,
 } from '@/store';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { TranslationKey } from '@/i18n/translations';
@@ -41,9 +42,13 @@ const PROVIDER_ICON: Record<AuthProvider, React.ComponentProps<typeof Ionicons>[
   apple: 'logo-apple',
 };
 
+/** The label the backend writes on the one-time link bonus transaction. */
+const WELCOME_BONUS_LABEL = 'Welcome bonus';
+
 export default function ProfileScreen() {
   const user = useUserStore((s) => s.user);
   const signOut = useUserStore((s) => s.signOut);
+  const pendingWelcome = useUserStore((s) => s.pendingWelcome);
   const balance = useWalletStore((s) => s.balance);
   const demoAddCoins = useWalletStore((s) => s.demoAddCoins);
   const setBalance = useWalletStore((s) => s.setBalance);
@@ -65,6 +70,30 @@ export default function ProfileScreen() {
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [resetting, setResetting] = useState(false);
+  // Account deletion is two explicit steps: what it means, then "are you sure".
+  const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Set once after a guest links Google/WhatsApp (see userStore.pendingWelcome);
+  // `coins` is null when no welcome bonus was granted (e.g. that identity
+  // already received one before), so we don't promise coins that aren't there.
+  const [welcome, setWelcome] = useState<{ coins: number | null } | null>(null);
+  const isGuest = user?.provider === 'guest';
+  const showDevTools = __DEV__ && !!user?.isAdmin;
+
+  useEffect(() => {
+    if (!pendingWelcome) return;
+    useUserStore.setState({ pendingWelcome: false });
+    (async () => {
+      // The server grants the bonus as the identity is linked; re-read the
+      // wallet so the balance on this screen already includes it.
+      await useWalletStore.getState().hydrateFromServer();
+      const bonus = useWalletStore
+        .getState()
+        .transactions.find((tx) => tx.type === 'bonus' && tx.label === WELCOME_BONUS_LABEL);
+      setWelcome({ coins: bonus ? bonus.amount : null });
+    })();
+  }, [pendingWelcome]);
 
   const handleReset = async () => {
     setResetting(true);
@@ -74,15 +103,36 @@ export default function ProfileScreen() {
     router.replace('/onboarding');
   };
 
+  const closeDelete = () => {
+    if (deleting) return;
+    setDeleteStep(0);
+    setDeleteError(null);
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    const ok = await deleteAccount();
+    setDeleting(false);
+    if (!ok) {
+      setDeleteError(t('profile.deleteFailed'));
+      return;
+    }
+    setDeleteStep(0);
+    router.replace('/onboarding');
+  };
+
+  // Members only: a guest has no way back into their account once signed
+  // out, so Profile offers them "Link an Account" instead.
   const confirmSignOut = () => {
     if (Platform.OS === 'web') {
       signOut().then(() => router.replace('/auth'));
       return;
     }
-    Alert.alert('Sign out', 'You can sign back in anytime with any option.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('profile.signOutTitle'), t('profile.signOutBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Sign Out',
+        text: t('profile.signOut'),
         style: 'destructive',
         onPress: () => {
           signOut().then(() => router.replace('/auth'));
@@ -91,7 +141,14 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const displayName = user?.displayName ?? 'Guest Viewer';
+  // The backend's placeholder names are stored in English; show them in the
+  // interface language until the user picks a name of their own.
+  const displayName =
+    !user || user.displayName === DEFAULT_GUEST_NAME
+      ? t('profile.guestName')
+      : user.displayName === DEFAULT_MEMBER_NAME
+        ? t('profile.memberName', { brand: BRAND.name })
+        : user.displayName;
   const contact = user?.email ?? (user?.phone ? formatPhone(user.phone) : null);
   const initial = displayName.trim().charAt(0).toUpperCase() || BRAND.name.charAt(0);
 
@@ -102,7 +159,7 @@ export default function ProfileScreen() {
           <Text style={styles.header}>{t('profile.title')}</Text>
           {__DEV__ && (
             <View style={styles.prototypeBadge}>
-              <Text style={styles.prototypeBadgeText}>PROTOTYPE</Text>
+              <Text style={styles.prototypeBadgeText}>{t('profile.prototypeBadge')}</Text>
             </View>
           )}
         </View>
@@ -151,7 +208,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {user?.provider === 'guest' && (
+        {isGuest && (
           <Pressable
             onPress={() => router.push('/auth?mode=upgrade')}
             accessibilityRole="button"
@@ -170,7 +227,7 @@ export default function ProfileScreen() {
           </Pressable>
         )}
 
-        <Pressable onPress={() => router.push('/wallet')} accessibilityRole="button" accessibilityLabel="Open wallet">
+        <Pressable onPress={() => router.push('/wallet')} accessibilityRole="button" accessibilityLabel={t('profile.openWallet')}>
           <LinearGradient colors={gradients.premiumBanner} style={styles.coinCard}>
             <View>
               <Text style={styles.coinLabel}>{t('profile.coinBalance')}</Text>
@@ -227,37 +284,49 @@ export default function ProfileScreen() {
           </>
         )}
 
-        <View style={styles.menuGroup}>
-          <ProfileMenuItem icon="log-out-outline" label={t('profile.signOut')} onPress={confirmSignOut} />
-          <ProfileMenuItem icon="trash-outline" label={t('profile.resetPrototype')} destructive onPress={() => setConfirmVisible(true)} />
-        </View>
+        {user && (
+          <View style={styles.menuGroup}>
+            {!isGuest && <ProfileMenuItem icon="log-out-outline" label={t('profile.signOut')} onPress={confirmSignOut} />}
+            <ProfileMenuItem
+              icon="person-remove-outline"
+              label={isGuest ? t('profile.deleteGuestData') : t('profile.deleteAccount')}
+              destructive
+              onPress={() => setDeleteStep(1)}
+            />
+            {/* reset_my_data is refused once simulated payments are off, so
+                this is a developer tool, not something to show customers. */}
+            {showDevTools && (
+              <ProfileMenuItem icon="trash-outline" label={t('profile.resetPrototype')} destructive onPress={() => setConfirmVisible(true)} />
+            )}
+          </View>
+        )}
 
-        {__DEV__ && (
+        {showDevTools && (
           <View style={styles.demoSection}>
             <Pressable
               style={styles.demoHeader}
               onPress={() => setDemoExpanded((v) => !v)}
               accessibilityRole="button"
-              accessibilityLabel="Toggle demo controls"
+              accessibilityLabel={t('profile.demoToggle')}
             >
               <View style={styles.demoHeaderLeft}>
                 <Ionicons name="construct" size={16} color={colors.info} />
-                <Text style={styles.demoTitle}>Demo Controls</Text>
+                <Text style={styles.demoTitle}>{t('profile.demoTitle')}</Text>
               </View>
               <Ionicons name={demoExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textTertiary} />
             </Pressable>
-            <Text style={styles.demoSubtitle}>For client demonstrations only — not visible in production builds.</Text>
+            <Text style={styles.demoSubtitle}>{t('profile.demoSubtitle')}</Text>
 
             {demoExpanded && (
               <View style={styles.demoGrid}>
-                <DemoButton label="+500 Coins" onPress={() => demoAddCoins(500)} />
-                <DemoButton label="Remove All Coins" onPress={() => setBalance(0)} />
-                <DemoButton label="Activate Membership" onPress={() => subscription.activate('monthly')} />
-                <DemoButton label="Cancel Membership" onPress={() => subscription.cancel()} />
-                <DemoButton label="Lock All Premium" onPress={() => lockAllPremium()} />
-                <DemoButton label="Unlock All Episodes" onPress={() => unlockAll()} />
-                <DemoButton label="Clear Viewing History" onPress={clearHistory} />
-                <DemoButton label="Reset Entire Prototype" onPress={() => setConfirmVisible(true)} destructive />
+                <DemoButton label={t('profile.demoAddCoins', { amount: 500 })} onPress={() => demoAddCoins(500)} />
+                <DemoButton label={t('profile.demoRemoveCoins')} onPress={() => setBalance(0)} />
+                <DemoButton label={t('profile.demoActivate')} onPress={() => subscription.activate('monthly')} />
+                <DemoButton label={t('profile.demoCancel')} onPress={() => subscription.cancel()} />
+                <DemoButton label={t('profile.demoLockAll')} onPress={() => lockAllPremium()} />
+                <DemoButton label={t('profile.demoUnlockAll')} onPress={() => unlockAll()} />
+                <DemoButton label={t('profile.demoClearHistory')} onPress={clearHistory} />
+                <DemoButton label={t('profile.demoReset')} onPress={() => setConfirmVisible(true)} destructive />
               </View>
             )}
           </View>
@@ -283,6 +352,53 @@ export default function ProfileScreen() {
           style={styles.confirmAction}
         />
         <AppButton label={t('common.cancel')} onPress={() => setConfirmVisible(false)} variant="ghost" fullWidth />
+      </AppModal>
+
+      <AppModal visible={deleteStep !== 0} onClose={closeDelete}>
+        <View style={styles.confirmIconWrap}>
+          <Ionicons name="warning" size={26} color={colors.danger} />
+        </View>
+        {deleteStep === 1 ? (
+          <>
+            <Text style={styles.confirmTitle}>{isGuest ? t('profile.deleteGuestTitle') : t('profile.deleteTitle')}</Text>
+            <Text style={styles.confirmBody}>{isGuest ? t('profile.deleteGuestBody') : t('profile.deleteBody')}</Text>
+            <AppButton
+              label={t('profile.deleteContinue')}
+              onPress={() => setDeleteStep(2)}
+              variant="secondary"
+              fullWidth
+              style={styles.confirmAction}
+            />
+          </>
+        ) : (
+          <>
+            <Text style={styles.confirmTitle}>{t('profile.deleteConfirmTitle')}</Text>
+            <Text style={styles.confirmBody}>{t('profile.deleteConfirmBody')}</Text>
+            {deleteError && <Text style={styles.confirmError}>{deleteError}</Text>}
+            <AppButton
+              label={t('profile.deleteConfirm')}
+              onPress={handleDelete}
+              variant="danger"
+              fullWidth
+              loading={deleting}
+              style={styles.confirmAction}
+            />
+          </>
+        )}
+        <AppButton label={t('common.cancel')} onPress={closeDelete} variant="ghost" fullWidth disabled={deleting} />
+      </AppModal>
+
+      <AppModal visible={welcome !== null} onClose={() => setWelcome(null)}>
+        <View style={styles.welcomeIconWrap}>
+          <Ionicons name="checkmark-circle" size={28} color={colors.gold} />
+        </View>
+        <Text style={styles.confirmTitle}>{t('profile.linkedTitle')}</Text>
+        <Text style={styles.confirmBody}>
+          {welcome?.coins
+            ? t('profile.linkedBonus', { coins: welcome.coins, unit: BRAND.currency.coinNamePlural.toLowerCase() })
+            : t('profile.linkedBody')}
+        </Text>
+        <AppButton label={t('common.ok')} onPress={() => setWelcome(null)} variant="primary" fullWidth />
       </AppModal>
     </Screen>
   );
@@ -317,9 +433,9 @@ function EditNameModal({ visible, currentName, onClose }: { visible: boolean; cu
 
   const save = async () => {
     setSaving(true);
-    const message = await updateDisplayName(name);
+    const errorKey = await updateDisplayName(name);
     setSaving(false);
-    if (message) setError(message);
+    if (errorKey) setError(t(errorKey));
     else onClose();
   };
 
@@ -471,4 +587,14 @@ const styles = StyleSheet.create({
   confirmTitle: { ...typography.h2, color: colors.textPrimary, marginBottom: spacing.xs },
   confirmBody: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.lg },
   confirmAction: { marginBottom: spacing.sm },
+  confirmError: { ...typography.caption, color: colors.danger, marginBottom: spacing.sm },
+  welcomeIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(244,185,66,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
 });

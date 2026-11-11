@@ -2,7 +2,7 @@ import type { Genre } from '@/types';
 
 /** In display order (Discover, Search, Home category rows, admin form). */
 export const GENRES: Genre[] = [
-  'Malay Movies',
+  'Malaysia Movies',
   'Chinese Dramas',
   'Korean Dramas',
   'Movie Highlights',

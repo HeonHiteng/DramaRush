@@ -16,7 +16,7 @@ describe('keyboxStorage', () => {
     await AsyncStorage.setItem('keybox/user', 'new');
     await AsyncStorage.setItem('dramarush/user', 'old');
     expect(await keyboxStorage.getItem(STORAGE_KEYS.user)).toBe('new');
-    expect(await keyboxStorage.getItem(STORAGE_KEYS.library)).toBeNull();
+    expect(await keyboxStorage.getItem(STORAGE_KEYS.oauthLink)).toBeNull();
   });
 
   it('reset clears both old and new keys', async () => {

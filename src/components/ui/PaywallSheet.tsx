@@ -20,6 +20,11 @@ interface PaywallSheetProps {
   totalEpisodes: number;
   coinBalance: number;
   isSubscriber: boolean;
+  /**
+   * A guest on an ad episode: the ad is the only unlock they may use, so the
+   * balance, coin packages, membership and restore rows are left out.
+   */
+  adOnly?: boolean;
   onUnlockWithCoins: () => Promise<boolean>;
   onWatchAd: () => void;
   onViewCoinPackages: () => void;
@@ -43,6 +48,7 @@ export function PaywallSheet({
   totalEpisodes,
   coinBalance,
   isSubscriber,
+  adOnly = false,
   onUnlockWithCoins,
   onWatchAd,
   onViewCoinPackages,
@@ -118,10 +124,12 @@ export function PaywallSheet({
             totalEpisodes={totalEpisodes}
           />
 
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceLabel}>{t('wallet.yourBalance')}</Text>
-            <CoinBadge amount={coinBalance} />
-          </View>
+          {!adOnly && (
+            <View style={styles.balanceRow}>
+              <Text style={styles.balanceLabel}>{t('wallet.yourBalance')}</Text>
+              <CoinBadge amount={coinBalance} />
+            </View>
+          )}
 
           {status === 'insufficient' && (
             <View style={styles.warningBox}>
@@ -132,7 +140,7 @@ export function PaywallSheet({
             </View>
           )}
 
-          {episode.access === 'coin' && (
+          {episode.access === 'coin' && !adOnly && (
             <AppButton
               label={t('paywall.unlockForPrice', { price: episode.coinPrice ?? 0, symbol: BRAND.currency.coinSymbol })}
               onPress={handleUnlock}
@@ -154,12 +162,16 @@ export function PaywallSheet({
             />
           )}
 
-          <View style={styles.linkRow}>
-            <AppButton label={t('paywall.viewCoinPackages')} onPress={onViewCoinPackages} variant="ghost" style={styles.linkButton} />
-            <AppButton label={t('paywall.viewMembership')} onPress={onViewMembership} variant="ghost" style={styles.linkButton} />
-          </View>
-          <AppButton label={t('wallet.restorePurchases')} onPress={onRestorePurchases} variant="ghost" fullWidth />
-          {isSubscriber && <Text style={styles.memberHint}>{t('paywall.memberHint')}</Text>}
+          {!adOnly && (
+            <>
+              <View style={styles.linkRow}>
+                <AppButton label={t('paywall.viewCoinPackages')} onPress={onViewCoinPackages} variant="ghost" style={styles.linkButton} />
+                <AppButton label={t('paywall.viewMembership')} onPress={onViewMembership} variant="ghost" style={styles.linkButton} />
+              </View>
+              <AppButton label={t('wallet.restorePurchases')} onPress={onRestorePurchases} variant="ghost" fullWidth />
+              {isSubscriber && <Text style={styles.memberHint}>{t('paywall.memberHint')}</Text>}
+            </>
+          )}
         </>
       )}
     </BottomSheet>

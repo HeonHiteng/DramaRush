@@ -3,7 +3,7 @@
  * (DramaRush-Backend/admin/src/pages/SeriesForm.tsx) — change all three
  * together. */
 export type Genre =
-  | 'Malay Movies'
+  | 'Malaysia Movies'
   | 'Chinese Dramas'
   | 'Korean Dramas'
   | 'Movie Highlights'

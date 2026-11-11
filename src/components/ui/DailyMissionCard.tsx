@@ -8,25 +8,43 @@ import { RewardedAdOverlay } from '@/features/player/RewardedAdOverlay';
 import { useWalletStore } from '@/store';
 import { BRAND } from '@/config';
 import { useTranslation } from '@/i18n/useTranslation';
-
-const DAILY_MISSION_REWARD = 20;
+import type { TranslationKey } from '@/i18n/translations';
+import { DEFAULT_PUBLIC_CONFIG, usePublicConfig } from '@/services/content';
+import { useAccountGate } from '@/hooks/useAccountGate';
 
 export function DailyMissionCard() {
   const claimedToday = useWalletStore((s) => s.dailyMissionClaimedToday);
   const claimDailyMission = useWalletStore((s) => s.claimDailyMission);
   const [adVisible, setAdVisible] = useState(false);
   const [claiming, setClaiming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<TranslationKey | null>(null);
+  const { data: config } = usePublicConfig();
+  const { requireAccount } = useAccountGate();
   const { t } = useTranslation();
+  // The amount is server config (app_config.daily_mission_reward).
+  const reward = config?.dailyMissionReward ?? DEFAULT_PUBLIC_CONFIG.dailyMissionReward;
 
-  const handleRewardEarned = async () => {
+  const startMission = () => {
+    // Guests can't earn coins (the RPC answers account_required): ask them
+    // to link an account before sitting through the ad.
+    if (!requireAccount('mission')) return;
+    setAdVisible(true);
+  };
+
+  /** Resolves to the message the ad overlay shows instead of "Reward earned!", or null. */
+  const handleRewardEarned = async (): Promise<TranslationKey | null> => {
     setClaiming(true);
     setError(null);
     const awarded = await claimDailyMission();
     setClaiming(false);
-    if (awarded === 0 && !useWalletStore.getState().dailyMissionClaimedToday) {
-      setError(t('wallet.dailyMissionError'));
-    }
+    if (awarded > 0) return null;
+    // 0 with the mission marked done: the server already had today's claim,
+    // most likely from another device. Otherwise the call itself failed.
+    const message: TranslationKey = useWalletStore.getState().dailyMissionClaimedToday
+      ? 'wallet.dailyMissionClaimedElsewhere'
+      : 'wallet.dailyMissionError';
+    setError(message);
+    return message;
   };
 
   return (
@@ -40,13 +58,13 @@ export function DailyMissionCard() {
           <Text style={styles.subtitle}>
             {claimedToday
               ? t('wallet.dailyMissionSubtitleClaimed')
-              : t('wallet.dailyMissionSubtitleAvailable', { reward: DAILY_MISSION_REWARD, symbol: BRAND.currency.coinSymbol })}
+              : t('wallet.dailyMissionSubtitleAvailable', { reward, symbol: BRAND.currency.coinSymbol })}
           </Text>
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          {error && <Text style={styles.errorText}>{t(error)}</Text>}
         </View>
         <AppButton
           label={claimedToday ? t('wallet.claimed') : t('wallet.watchAd')}
-          onPress={() => setAdVisible(true)}
+          onPress={startMission}
           variant={claimedToday ? 'ghost' : 'gold'}
           disabled={claimedToday}
           loading={claiming}

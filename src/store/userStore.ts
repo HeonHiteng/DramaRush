@@ -1,28 +1,45 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
-import type { MockUser } from '@/types';
+import { FunctionsHttpError } from '@supabase/supabase-js';
+import type { AppUser } from '@/types';
+import type { TranslationKey } from '@/i18n/translations';
 import { supabase } from '@/lib/supabase';
 import { DEFAULT_GUEST_NAME } from '@/config';
+import { getDeviceKey } from '@/utils/deviceKey';
 import { asyncStorageAdapter, STORAGE_KEYS } from './storage';
 
 interface UserState {
-  user: MockUser | null;
+  user: AppUser | null;
   hasOnboarded: boolean;
   isAuthenticating: boolean;
   hasHydrated: boolean;
-  authError: string | null;
+  /**
+   * True once AuthListener has finished handling the first auth event —
+   * either a restored session (and its profile) or "no session". Until then
+   * `user === null` means "don't know yet", not "signed out", so nothing may
+   * create a guest on the strength of it (that used to replace a real
+   * account with a new guest on slow networks).
+   */
+  sessionChecked: boolean;
+  /** Set by signOut() so AuthListener can tell a SIGNED_OUT the user asked
+   * for from one Supabase raised on its own (refresh token revoked, account
+   * deleted elsewhere) — only the latter triggers recovery. */
+  signOutRequested: boolean;
+  /** Set after a guest successfully links Google or a phone; Profile shows
+   * the one-time "account linked" modal and clears it. */
+  pendingWelcome: boolean;
+  /** An i18n key (screens translate it), never raw server text. */
+  authError: TranslationKey | null;
   completeOnboarding: () => void;
   /** Each resolves to whether it succeeded — `authError` is also set on
    * failure for screens that just render it, but callers that need to
    * branch on the outcome (e.g. deciding whether to navigate) don't have to
    * go read it back out of the store to find out. */
   signInAsGuest: () => Promise<boolean>;
-  signUpWithEmail: (name: string, email: string, password: string) => Promise<boolean>;
-  signInWithEmail: (email: string, password: string) => Promise<boolean>;
-  upgradeGuestAccount: (name: string, email: string, password: string) => Promise<boolean>;
   signInWithOAuth: (provider: 'google' | 'apple') => Promise<boolean>;
   /** Sends a 6-digit code to `phone` over WhatsApp. Call verifyPhoneOtp with
    * the code the user receives to actually complete sign-in. */
@@ -31,28 +48,54 @@ interface UserState {
   /**
    * Guest-upgrade counterparts of signInWithOAuth / signInWithPhoneOtp: they
    * attach the Google login or phone number to the *current* (anonymous)
-   * account rather than signing into a new one, so the guest's wallet,
-   * unlocks and history stay theirs — the same reason upgradeGuestAccount
-   * uses updateUser instead of signUp.
+   * account rather than signing into a new one, so the user id — and with it
+   * the guest's unlocks and history — stays the same.
    */
   linkOAuthIdentity: (provider: 'google') => Promise<boolean>;
   linkPhoneOtp: (phone: string) => Promise<boolean>;
   verifyLinkedPhoneOtp: (phone: string, token: string) => Promise<boolean>;
-  /** Renames the signed-in user (1–40 characters). Resolves to an error message, or null on success. */
-  updateDisplayName: (name: string) => Promise<string | null>;
+  /** Renames the signed-in user (1–40 characters). Resolves to an i18n error key, or null on success. */
+  updateDisplayName: (name: string) => Promise<TranslationKey | null>;
+  /** Signs this device out only (`scope: 'local'`): a global sign-out would
+   * also kick the same account off every other phone and browser. */
   signOut: () => Promise<void>;
   clearAuthError: () => void;
   /** Called by AuthListener whenever Supabase's session changes. */
-  setSessionUser: (user: MockUser | null) => void;
+  setSessionUser: (user: AppUser | null) => void;
   setHasHydrated: (v: boolean) => void;
 }
 
-function friendlyAuthError(error: unknown): string {
-  // supabase-js reports auth-server 5xx responses with the HTTP Response
-  // object stringified as the message — literally "{}" — so the server's own
-  // reason never reaches us. Show something readable instead of "{}".
-  if (error instanceof Error && error.message && error.message !== '{}') return error.message;
-  return 'Something went wrong signing in. Please try again.';
+function errorField(error: unknown, field: 'code' | 'message' | 'status'): unknown {
+  return error && typeof error === 'object' ? (error as Record<string, unknown>)[field] : undefined;
+}
+
+/**
+ * Maps a Supabase auth error (or an OAuth redirect's error/error_code
+ * params) to an i18n key. Raw server text is English-only and sometimes
+ * useless — supabase-js reports auth-server 5xx responses with the HTTP
+ * Response object stringified as the message, literally "{}" — so it's
+ * logged for debugging and the user sees one of our own messages instead.
+ */
+export function authErrorKey(error: unknown): TranslationKey {
+  const code = String(errorField(error, 'code') ?? '');
+  const message = String(errorField(error, 'message') ?? (typeof error === 'string' ? error : '')).toLowerCase();
+  const status = Number(errorField(error, 'status'));
+
+  if (
+    ['identity_already_exists', 'phone_exists', 'email_exists', 'user_already_exists'].includes(code) ||
+    message.includes('already been registered') ||
+    message.includes('already linked') ||
+    message.includes('already exists')
+  ) {
+    return 'auth.alreadyLinked';
+  }
+  if (status === 429 || code.startsWith('over_') || message.includes('rate limit')) return 'auth.tooManyAttempts';
+  if (code === 'otp_expired' || message.includes('token has expired') || message.includes('invalid otp')) return 'auth.invalidCode';
+  if (code === 'validation_failed' && message.includes('phone')) return 'auth.invalidPhone';
+  if (message.includes('invalid phone')) return 'auth.invalidPhone';
+
+  console.warn('auth error', error);
+  return 'auth.genericError';
 }
 
 /** "+60 12-345 6789" -> "+60123456789": Supabase rejects spaces and dashes in phone numbers. */
@@ -61,7 +104,57 @@ export function normalizePhone(phone: string): string {
   return (trimmed.startsWith('+') ? '+' : '') + trimmed.replace(/\D/g, '');
 }
 
-/** Every sign-in/sign-up action below (except OAuth, whose multi-step,
+/** How long the splash waits for guest-session before settling for an anonymous guest. */
+const GUEST_SESSION_TIMEOUT_MS = 10_000;
+
+interface GuestSessionResponse {
+  access_token?: string;
+  refresh_token?: string;
+}
+
+/**
+ * Signs in as this device's own guest account: the guest-session Edge
+ * Function maps the device key to the same (non-anonymous) guest user every
+ * time, so a reinstall or a sign-out comes back to the same favourites,
+ * history and ad unlocks. Resolves to false — never throws — whenever
+ * that isn't possible (no device key, offline, function down, the per-IP
+ * cap on new guests), and the caller falls back to an anonymous guest.
+ */
+async function signInAsDeviceGuest(): Promise<boolean> {
+  const deviceKey = await getDeviceKey();
+  if (!deviceKey) return false;
+  try {
+    const { data, error } = await supabase.functions.invoke<GuestSessionResponse>('guest-session', {
+      body: { device_key: deviceKey },
+      timeout: GUEST_SESSION_TIMEOUT_MS,
+    });
+    if (error) {
+      const body = error instanceof FunctionsHttpError ? await error.context.json().catch(() => null) : null;
+      if (body?.error === 'guest_limit') console.warn('guest-session: new-guest limit reached, using an anonymous guest');
+      else console.warn('guest-session failed', body?.error ?? error);
+      return false;
+    }
+    if (!data?.access_token || !data.refresh_token) {
+      console.warn('guest-session returned no session');
+      return false;
+    }
+    // Emits SIGNED_IN, which AuthListener handles like any other sign-in.
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+    if (sessionError) {
+      console.warn('guest-session: setSession failed', sessionError);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.warn('guest-session failed', error);
+    return false;
+  }
+}
+
+/** Every sign-in action below (except OAuth, whose multi-step,
  * multi-return-point flow doesn't fit this shape) follows the same pattern:
  * flip `isAuthenticating` on, run one Supabase auth call, translate its
  * error into `authError`, flip `isAuthenticating` back off. Pulling that
@@ -73,7 +166,7 @@ async function runAuthAction(
 ): Promise<boolean> {
   set({ isAuthenticating: true, authError: null });
   const { error } = await action();
-  set({ isAuthenticating: false, authError: error ? friendlyAuthError(error) : null });
+  set({ isAuthenticating: false, authError: error ? authErrorKey(error) : null });
   return !error;
 }
 
@@ -82,18 +175,37 @@ type OAuthStart = (options: { redirectTo: string; skipBrowserRedirect: boolean }
   error: unknown;
 }>;
 
+/** Pulls `error_code` / `error_description` out of a provider redirect, which
+ * Supabase puts in the query string or the fragment depending on the flow. */
+export function redirectError(url: string): { code?: string; message: string } | null {
+  const parsed = new URL(url);
+  const params = new URLSearchParams(parsed.hash.replace(/^#/, ''));
+  parsed.searchParams.forEach((value, key) => params.set(key, value));
+  const message = params.get('error_description') ?? params.get('error');
+  if (!message) return null;
+  return { code: params.get('error_code') ?? undefined, message };
+}
+
 /**
  * The browser round-trip shared by OAuth sign-in and OAuth identity linking:
- * on web, a full-page redirect (Supabase's client picks the session up from
- * the URL when the page reloads at `redirectTo`); on native, an in-app auth
+ * on web, a full-page redirect (/auth/callback finishes the PKCE exchange
+ * when the page reloads at `redirectTo`); on native, an in-app auth
  * session whose returned code is exchanged for a session here.
  */
-async function runOAuthFlow(set: (partial: Partial<UserState>) => void, start: OAuthStart): Promise<boolean> {
+async function runOAuthFlow(
+  set: (partial: Partial<UserState>) => void,
+  start: OAuthStart,
+  { linking }: { linking: boolean }
+): Promise<boolean> {
   set({ isAuthenticating: true, authError: null });
   try {
     const redirectTo = Linking.createURL('auth/callback');
 
     if (Platform.OS === 'web') {
+      // The page is about to unload, taking this store with it: leave a note
+      // for /auth/callback so it knows the round trip was a guest bind.
+      if (linking) await AsyncStorage.setItem(STORAGE_KEYS.oauthLink, '1');
+      else await AsyncStorage.removeItem(STORAGE_KEYS.oauthLink);
       const { data, error } = await start({ redirectTo, skipBrowserRedirect: false });
       if (error) throw error;
       if (data?.url) window.location.href = data.url;
@@ -102,7 +214,7 @@ async function runOAuthFlow(set: (partial: Partial<UserState>) => void, start: O
 
     const { data, error } = await start({ redirectTo, skipBrowserRedirect: true });
     if (error) throw error;
-    if (!data?.url) throw new Error('The sign-in provider did not return a URL.');
+    if (!data?.url) throw new Error('no_provider_url');
 
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     if (result.type !== 'success' || !result.url) {
@@ -111,29 +223,24 @@ async function runOAuthFlow(set: (partial: Partial<UserState>) => void, start: O
       return false;
     }
 
+    // e.g. identity_already_exists when that Google account already has its
+    // own KBbox account — the provider comes back with an error, not a code.
+    const providerError = redirectError(result.url);
+    if (providerError) throw providerError;
+
     const code = new URL(result.url).searchParams.get('code');
-    if (!code) throw new Error('No authorization code was returned.');
+    if (!code) throw new Error('no_authorization_code');
 
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
     if (exchangeError) throw exchangeError;
 
-    set({ isAuthenticating: false });
+    set({ isAuthenticating: false, ...(linking ? { pendingWelcome: true } : null) });
     return true;
   } catch (error) {
-    set({ isAuthenticating: false, authError: friendlyAuthError(error) });
+    if (Platform.OS === 'web') await AsyncStorage.removeItem(STORAGE_KEYS.oauthLink);
+    set({ isAuthenticating: false, authError: authErrorKey(error) });
     return false;
   }
-}
-
-/** updateUser() only writes auth.users' metadata — the profiles row (where
- * display_name actually gets read from; see loadMockUser in AuthListener)
- * was seeded once at guest sign-up with DEFAULT_GUEST_NAME and won't pick up
- * a new name on its own. AuthListener also won't re-run for a plain table
- * write like this one (no auth event fires), so the in-memory user is
- * patched directly too instead of waiting on a refresh that isn't coming. */
-async function syncGuestDisplayName(set: (fn: (state: UserState) => Partial<UserState>) => void, userId: string, name: string) {
-  await supabase.from('profiles').update({ display_name: name }).eq('user_id', userId);
-  set((state) => (state.user ? { user: { ...state.user, displayName: name } } : {}));
 }
 
 export const useUserStore = create<UserState>()(
@@ -143,47 +250,24 @@ export const useUserStore = create<UserState>()(
       hasOnboarded: false,
       isAuthenticating: false,
       hasHydrated: false,
+      sessionChecked: false,
+      signOutRequested: false,
+      pendingWelcome: false,
       authError: null,
       setHasHydrated: (v) => set({ hasHydrated: v }),
       completeOnboarding: () => set({ hasOnboarded: true }),
       clearAuthError: () => set({ authError: null }),
       setSessionUser: (user) => set({ user }),
 
+      // The device guest first; an anonymous guest (the original behaviour)
+      // when that fails, so nobody is ever stuck outside the app.
       signInAsGuest: () =>
-        runAuthAction(set, () =>
-          supabase.auth.signInAnonymously({
+        runAuthAction(set, async () => {
+          if (await signInAsDeviceGuest()) return { error: null };
+          return supabase.auth.signInAnonymously({
             options: { data: { provider: 'guest', display_name: DEFAULT_GUEST_NAME } },
-          })
-        ),
-
-      signUpWithEmail: (name, email, password) =>
-        runAuthAction(set, () =>
-          supabase.auth.signUp({ email, password, options: { data: { provider: 'email', display_name: name } } })
-        ),
-
-      signInWithEmail: (email, password) => runAuthAction(set, () => supabase.auth.signInWithPassword({ email, password })),
-
-      // Attaches real credentials to the *current* (anonymous) session via
-      // updateUser, rather than signUp, which would create a brand-new
-      // auth.users row and silently orphan the guest's wallet/unlocks/
-      // history — updateUser keeps the same user id, so everything already
-      // tied to it carries over.
-      upgradeGuestAccount: async (name, email, password) => {
-        let updatedUserId: string | undefined;
-        const ok = await runAuthAction(set, async () => {
-          const { data, error } = await supabase.auth.updateUser({
-            email,
-            password,
-            data: { provider: 'email', display_name: name },
           });
-          updatedUserId = data.user?.id;
-          return { error };
-        });
-        if (ok && updatedUserId) {
-          await syncGuestDisplayName(set, updatedUserId, name);
-        }
-        return ok;
-      },
+        }),
 
       // Supabase generates the code; its "Send SMS" auth hook hands it to our
       // shared otp-hub service, which delivers it over WhatsApp (Meta Cloud
@@ -197,20 +281,32 @@ export const useUserStore = create<UserState>()(
       updateDisplayName: async (name) => {
         const user = get().user;
         const trimmed = name.trim();
-        if (!user) return 'Not signed in.';
-        if (trimmed.length < 1 || trimmed.length > 40) return 'Name must be 1 to 40 characters.';
-        const { error } = await supabase.from('profiles').update({ display_name: trimmed }).eq('user_id', user.id);
-        if (error) return friendlyAuthError(error);
+        if (!user) return 'profile.notSignedIn';
+        if (trimmed.length < 1 || trimmed.length > 40) return 'profile.nameLength';
+        // RLS turns an update of someone else's (or a missing) row into
+        // "0 rows, no error" — asking for the row back is how that shows up.
+        const { data, error } = await supabase
+          .from('profiles')
+          .update({ display_name: trimmed })
+          .eq('user_id', user.id)
+          .select('user_id');
+        if (error || !data || data.length === 0) {
+          if (error) console.warn('updateDisplayName failed', error);
+          return 'profile.nameSaveFailed';
+        }
+        // No auth event fires for a plain table write, so AuthListener won't
+        // reload the profile: patch the in-memory user directly.
         set({ user: { ...user, displayName: trimmed } });
         return null;
       },
 
       signInWithOAuth: (provider) =>
-        runOAuthFlow(set, (options) => supabase.auth.signInWithOAuth({ provider, options })),
+        runOAuthFlow(set, (options) => supabase.auth.signInWithOAuth({ provider, options }), { linking: false }),
 
       // Requires "Allow manual linking" in the Supabase project's auth
       // settings; without it the server refuses and the error shows inline.
-      linkOAuthIdentity: (provider) => runOAuthFlow(set, (options) => supabase.auth.linkIdentity({ provider, options })),
+      linkOAuthIdentity: (provider) =>
+        runOAuthFlow(set, (options) => supabase.auth.linkIdentity({ provider, options }), { linking: true }),
 
       // A phone *change* on the current user: the code goes to the new
       // number and is verified with type 'phone_change' (not 'sms', which is
@@ -218,13 +314,23 @@ export const useUserStore = create<UserState>()(
       // SMS hook (otp-hub delivers it on WhatsApp), so no `channel` option.
       linkPhoneOtp: (phone) => runAuthAction(set, () => supabase.auth.updateUser({ phone: normalizePhone(phone) })),
 
-      verifyLinkedPhoneOtp: (phone, token) =>
-        runAuthAction(set, () =>
-          supabase.auth.verifyOtp({ phone: normalizePhone(phone), token, type: 'phone_change' }),
-        ),
+      verifyLinkedPhoneOtp: async (phone, token) => {
+        const ok = await runAuthAction(set, () =>
+          supabase.auth.verifyOtp({ phone: normalizePhone(phone), token, type: 'phone_change' })
+        );
+        if (ok) set({ pendingWelcome: true });
+        return ok;
+      },
 
       signOut: async () => {
-        await supabase.auth.signOut();
+        set({ signOutRequested: true });
+        const { error } = await supabase.auth.signOut({ scope: 'local' });
+        // On failure no SIGNED_OUT event follows, so nobody else will clear
+        // the flag — and a stale one would swallow a later real expiry.
+        if (error) {
+          console.warn('signOut failed', error);
+          set({ signOutRequested: false });
+        }
         set({ user: null });
       },
     }),

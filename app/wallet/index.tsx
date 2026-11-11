@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -13,24 +13,38 @@ import { CoinBadge } from '@/components/ui/CoinBadge';
 import { DailyMissionCard } from '@/components/ui/DailyMissionCard';
 import { TransactionRow } from '@/components/ui/TransactionRow';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { COIN_PACKAGES } from '@/data';
+import { AccountGateSheet } from '@/components/ui/AccountGateSheet';
+import { useCoinPackages, usePublicConfig } from '@/services/content';
 import { useWalletStore } from '@/store';
 import { BRAND } from '@/config';
 import type { CoinPackage } from '@/types';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useAccountGate } from '@/hooks/useAccountGate';
+import { useRefreshOnForeground } from '@/hooks/useRefreshOnForeground';
 import { useTranslation } from '@/i18n/useTranslation';
 
-type ModalState = 'confirm' | 'processing' | 'success';
+type ModalState = 'confirm' | 'processing' | 'success' | 'failed';
 
 export default function WalletScreen() {
   const balance = useWalletStore((s) => s.balance);
   const transactions = useWalletStore((s) => s.transactions);
   const purchasePackage = useWalletStore((s) => s.purchasePackage);
+  const { data: packages, isLoading: packagesLoading, isError: packagesFailed } = useCoinPackages();
+  const { data: config } = usePublicConfig();
+  // Until the config arrives the server is the judge (it refuses purchases
+  // when simulated payments are off); hide the buttons only once it says so.
+  const paymentsEnabled = config?.simulatedPayments ?? true;
+  const { requireAccount } = useAccountGate();
 
   const [selectedPackage, setSelectedPackage] = useState<CoinPackage | null>(null);
   const [modalState, setModalState] = useState<ModalState>('confirm');
+  /** Blocks a second confirm tap while the first purchase is in flight. */
+  const purchasingRef = useRef(false);
+  const [purchasing, setPurchasing] = useState(false);
   const { success: successHaptic } = useHaptics();
   const { t } = useTranslation();
+
+  useRefreshOnForeground(useCallback((maxAgeMs: number) => void useWalletStore.getState().refreshIfStale(maxAgeMs), []));
 
   const checkScale = useSharedValue(0);
 
@@ -45,23 +59,32 @@ export default function WalletScreen() {
   const checkStyle = useAnimatedStyle(() => ({ transform: [{ scale: checkScale.value }] }));
 
   const openConfirm = (pkg: CoinPackage) => {
+    // Coins belong to an account: a guest is asked to link one first.
+    if (!requireAccount('coins')) return;
     setSelectedPackage(pkg);
     setModalState('confirm');
   };
 
   const confirmPurchase = async () => {
-    if (!selectedPackage) return;
+    if (!selectedPackage || purchasingRef.current) return;
+    purchasingRef.current = true;
+    setPurchasing(true);
     setModalState('processing');
     const ok = await purchasePackage(selectedPackage);
+    purchasingRef.current = false;
+    setPurchasing(false);
     if (ok) {
       setModalState('success');
       successHaptic();
     } else {
-      setSelectedPackage(null);
+      setModalState('failed');
     }
   };
 
-  const closeModal = () => setSelectedPackage(null);
+  const closeModal = () => {
+    if (purchasingRef.current) return;
+    setSelectedPackage(null);
+  };
 
   const handleRestore = () => {
     const message = t('wallet.restorePurchasesMessage');
@@ -86,8 +109,15 @@ export default function WalletScreen() {
         <Text style={styles.sectionTitle}>{t('wallet.coinPackages')}</Text>
         {/* Full-width rows rather than a 2-up grid: every package reads the
             same way at any screen width, with the price as the action. */}
+        {!paymentsEnabled ? (
+          <Text style={styles.notice}>{t('wallet.comingSoon')}</Text>
+        ) : packagesLoading ? (
+          <ActivityIndicator color={colors.accent} style={styles.packagesLoading} />
+        ) : packagesFailed || !packages ? (
+          <Text style={styles.notice}>{t('wallet.packagesUnavailable')}</Text>
+        ) : (
         <View style={styles.packageList}>
-          {COIN_PACKAGES.map((pkg) => (
+          {packages.map((pkg) => (
             <Pressable
               key={pkg.id}
               onPress={() => openConfirm(pkg)}
@@ -115,6 +145,7 @@ export default function WalletScreen() {
             </Pressable>
           ))}
         </View>
+        )}
 
         <View style={styles.linkRow}>
           <AppButton label={t('wallet.restorePurchases')} onPress={handleRestore} variant="ghost" style={styles.linkButton} />
@@ -148,6 +179,7 @@ export default function WalletScreen() {
             <AppButton
               label={t('wallet.confirmPrice', { price: selectedPackage.priceLabel })}
               onPress={confirmPurchase}
+              loading={purchasing}
               fullWidth
               style={styles.modalAction}
             />
@@ -171,7 +203,16 @@ export default function WalletScreen() {
             <AppButton label={t('wallet.done')} onPress={closeModal} fullWidth style={styles.modalAction} />
           </View>
         )}
+        {selectedPackage && modalState === 'failed' && (
+          <View style={styles.processingWrap}>
+            <Ionicons name="alert-circle" size={44} color={colors.danger} style={styles.failedIcon} />
+            <Text style={styles.modalBody}>{t('wallet.purchaseFailed')}</Text>
+            <AppButton label={t('common.close')} onPress={closeModal} variant="secondary" fullWidth />
+          </View>
+        )}
       </AppModal>
+
+      <AccountGateSheet />
     </Screen>
   );
 }
@@ -182,6 +223,9 @@ const styles = StyleSheet.create({
   balanceLabel: { ...typography.body, color: 'rgba(255,255,255,0.75)', marginBottom: spacing.sm },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.sm },
   packageList: { gap: spacing.sm, marginBottom: spacing.md },
+  packagesLoading: { marginVertical: spacing.lg },
+  notice: { ...typography.body, color: colors.textTertiary, textAlign: 'center', marginVertical: spacing.lg },
+  failedIcon: { marginBottom: spacing.sm },
   packageRow: {
     flexDirection: 'row',
     alignItems: 'center',

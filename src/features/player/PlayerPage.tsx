@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent, useEventListener } from 'expo';
 import { colors, typography } from '@/theme';
 import { VideoControls } from '@/components/media/VideoControls';
+import { AppButton } from '@/components/ui/AppButton';
 import type { Episode } from '@/types';
-import { useLibraryStore, useSettingsStore } from '@/store';
+import { useLibraryStore, useSettingsStore, useSubscriptionStore, useUserStore } from '@/store';
+import { supabase } from '@/lib/supabase';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { TranslationKey } from '@/i18n/translations';
 import { fetchPlayback, isGrantFresh, type PlaybackErrorCode, type PlaybackGrant } from '@/services/playback';
@@ -26,11 +28,21 @@ const HEALTHY_PLAYBACK_SEC = 3;
 const LANDSCAPE_MIN_RATIO = 1.05;
 
 const NOTICE_KEYS: Partial<Record<PlaybackErrorCode, TranslationKey>> = {
+  not_authenticated: 'player.sessionExpired',
+  account_required: 'player.accountRequired',
   unavailable: 'player.videoUnavailable',
   rate_limited: 'player.tryAgainLater',
   blocked: 'player.tryAgainLater',
   budget: 'player.tryAgainLater',
 };
+
+/**
+ * Why the page asks the screen to step in: 'locked' -> the paywall (members,
+ * and guests on an ad episode — the ad is the one unlock they may use),
+ * 'account_required' -> the link-account gate (a guest on a coin or member
+ * episode).
+ */
+export type LockReason = 'locked' | 'account_required';
 
 interface PlayerPageProps {
   episode: Episode;
@@ -47,7 +59,7 @@ interface PlayerPageProps {
   onShare: () => void;
   onOpenEpisodeList: () => void;
   onClose: () => void;
-  onLocked: () => void;
+  onLocked: (reason: LockReason) => void;
   onAutoAdvance: () => void;
   /** The active page entered/left the rotated landscape view (the pager stops swiping meanwhile). */
   onLandscapeChange?: (landscape: boolean) => void;
@@ -73,10 +85,14 @@ export function PlayerPage({
   onLandscapeChange,
 }: PlayerPageProps) {
   const setProgress = useLibraryStore((s) => s.setProgress);
+  const flushProgress = useLibraryStore((s) => s.flushProgress);
   const recordHistory = useLibraryStore((s) => s.recordHistory);
+  const isGuest = useUserStore((s) => s.user?.provider === 'guest');
   const autoplayNextEpisode = useSettingsStore((s) => s.autoplayNextEpisode);
   const defaultSubtitlesEnabled = useSettingsStore((s) => s.subtitlesEnabled);
   const { t } = useTranslation();
+  /** What a locked page asks for: guests may unlock ad episodes themselves, nothing else. */
+  const lockReason: LockReason = isGuest && episode.access !== 'ad_unlock' ? 'account_required' : 'locked';
 
   const [controlsVisible, setControlsVisible] = useState(true);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(defaultSubtitlesEnabled);
@@ -90,6 +106,12 @@ export function PlayerPage({
   const hasResumedRef = useRef(false);
   const hasRecordedHistoryRef = useRef(false);
   const lockedNotifiedRef = useRef(false);
+  /** isActive as of the last activation effect, to notice the page becoming active again. */
+  const wasActiveRef = useRef(false);
+  /** One getSession() + retry per 401 before showing "session expired". */
+  const authRetriedRef = useRef(false);
+  /** A member's not_entitled re-reads unlocks + membership once per activation (another device, expiry). */
+  const entitlementRecheckedRef = useRef(false);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Signed playback URL from the backend (playback-token). Only requested when
@@ -108,10 +130,12 @@ export function PlayerPage({
   const hlsRef = useRef<HlsAttachment | null>(null);
   const retryAfterErrorRef = useRef<() => void>(() => {});
   const isActiveRef = useRef(isActive);
+  const isGuestRef = useRef(isGuest);
   const onLockedRef = useRef(onLocked);
   const onLandscapeChangeRef = useRef(onLandscapeChange);
   useEffect(() => {
     isActiveRef.current = isActive;
+    isGuestRef.current = isGuest;
     onLockedRef.current = onLocked;
     onLandscapeChangeRef.current = onLandscapeChange;
   });
@@ -126,14 +150,43 @@ export function PlayerPage({
     async (resumeAt: number | null, force: boolean) => {
       if (loadingSourceRef.current) return;
       loadingSourceRef.current = true;
-      const result = await fetchPlayback(episode.id, { force });
+      let result = await fetchPlayback(episode.id, { force });
+      if (!result.ok && result.code === 'not_authenticated' && !authRetriedRef.current) {
+        // Usually an access token that lapsed while the app slept:
+        // getSession() refreshes it. Real sign-outs are AuthListener's job.
+        authRetriedRef.current = true;
+        await supabase.auth.getSession();
+        result = await fetchPlayback(episode.id, { force: true });
+      }
       loadingSourceRef.current = false;
       if (!result.ok) {
         setPlaybackError(result.code);
-        // The server is the authority: if it says locked, show the paywall.
-        if (result.code === 'not_entitled') onLockedRef.current();
+        // The server is the authority. A guest can only unlock ad episodes
+        // (not_entitled there opens the ad-only paywall); anything else
+        // they get the link-account gate for, rather than the paywall.
+        if (
+          result.code === 'account_required' ||
+          (result.code === 'not_entitled' && isGuestRef.current && episode.access !== 'ad_unlock')
+        ) {
+          lockedNotifiedRef.current = true;
+          onLockedRef.current('account_required');
+        } else if (result.code === 'not_entitled') {
+          // We thought this member could watch: the membership may have
+          // expired or the unlock state changed elsewhere. Re-read both
+          // once so the page reflects the server, then open the paywall.
+          if (!entitlementRecheckedRef.current) {
+            entitlementRecheckedRef.current = true;
+            await Promise.all([
+              useLibraryStore.getState().hydrateFromServer(),
+              useSubscriptionStore.getState().hydrateFromServer(),
+            ]);
+          }
+          lockedNotifiedRef.current = true;
+          if (isActiveRef.current) onLockedRef.current('locked');
+        }
         return;
       }
+      authRetriedRef.current = false;
       setPlaybackError(null);
       setGrant(result.grant);
       pendingSeekRef.current = resumeAt;
@@ -158,7 +211,7 @@ export function PlayerPage({
       // the load. Native keeps the previous paused state, so start it here.
       if (Platform.OS !== 'web' && isActiveRef.current) player.play();
     },
-    [episode.id, player]
+    [episode.id, episode.access, player]
   );
 
   /**
@@ -224,10 +277,18 @@ export function PlayerPage({
   });
 
   useEffect(() => {
+    // Swiping back to this page is a new chance: the paywall / gate may open
+    // again, and a member's entitlement is re-checked if the server refuses.
+    if (isActive && !wasActiveRef.current) {
+      lockedNotifiedRef.current = false;
+      entitlementRecheckedRef.current = false;
+    }
+    wasActiveRef.current = isActive;
+
     if (!isUnlocked) {
       if (isActive && !lockedNotifiedRef.current) {
         lockedNotifiedRef.current = true;
-        onLocked();
+        onLocked(lockReason);
       }
       return;
     }
@@ -254,9 +315,26 @@ export function PlayerPage({
     } else {
       player.pause();
       setNextCountdown(null);
+      flushProgress(episode.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, isUnlocked]);
+
+  // Progress goes to the server at most every few seconds; whatever is
+  // pending is written as soon as playback pauses or the app is backgrounded.
+  useEffect(() => {
+    if (!isPlaying) flushProgress(episode.id);
+  }, [isPlaying, flushProgress, episode.id]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') flushProgress(episode.id);
+    });
+    return () => sub.remove();
+  }, [isActive, flushProgress, episode.id]);
+
+  useEffect(() => () => flushProgress(episode.id), [flushProgress, episode.id]);
 
   useEffect(() => {
     if (!isActive || !isUnlocked) return;
@@ -391,7 +469,15 @@ export function PlayerPage({
           )}
         </View>
       ) : (
-        <LockedPoster episodeNumber={episode.number} episodeTitle={episode.title} lockedTitle={t('player.lockedTitle', { number: episode.number })} />
+        <LockedPoster
+          episodeNumber={episode.number}
+          episodeTitle={episode.title}
+          lockedTitle={t('player.lockedTitle', { number: episode.number })}
+          actionLabel={t(
+            !isGuest ? 'player.lockedUnlock' : lockReason === 'locked' ? 'player.lockedWatchAd' : 'player.lockedLinkAccount'
+          )}
+          onAction={() => onLocked(lockReason)}
+        />
       )}
 
       {isUnlocked && playbackError && playbackError !== 'not_entitled' && (
@@ -401,7 +487,7 @@ export function PlayerPage({
         </View>
       )}
 
-      {!landscapeMode && (
+      {isUnlocked && !landscapeMode && (
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={() => setControlsVisible((v) => !v)}
@@ -462,7 +548,16 @@ export function PlayerPage({
   );
 }
 
-function LockedPoster({ lockedTitle, episodeTitle }: { episodeNumber: number; episodeTitle: string; lockedTitle: string }) {
+interface LockedPosterProps {
+  episodeNumber: number;
+  episodeTitle: string;
+  lockedTitle: string;
+  /** Unlock (member: paywall) or Link account (guest: gate) — a dismissed sheet must not leave a dead end. */
+  actionLabel: string;
+  onAction: () => void;
+}
+
+function LockedPoster({ lockedTitle, episodeTitle, actionLabel, onAction }: LockedPosterProps) {
   return (
     <LinearGradient colors={['#241A2C', '#120E17']} style={styles.lockedRoot}>
       <View style={styles.lockedIconCircle}>
@@ -472,6 +567,7 @@ function LockedPoster({ lockedTitle, episodeTitle }: { episodeNumber: number; ep
       <Text style={styles.lockedSubtitle} numberOfLines={2}>
         {episodeTitle}
       </Text>
+      <AppButton label={actionLabel} onPress={onAction} variant="gold" style={styles.lockedAction} />
     </LinearGradient>
   );
 }
@@ -489,6 +585,7 @@ const styles = StyleSheet.create({
   },
   lockedTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: 6 },
   lockedSubtitle: { ...typography.body, color: colors.textTertiary, textAlign: 'center' },
+  lockedAction: { marginTop: 20, minWidth: 180 },
   subtitleWrap: { position: 'absolute', left: 24, right: 24, alignItems: 'center' },
   noticeWrap: { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
   centered: { alignItems: 'center', justifyContent: 'center' },

@@ -1,37 +1,79 @@
 import React, { useEffect } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '@/theme';
 import { supabase } from '@/lib/supabase';
-import { useUserStore } from '@/store';
+import { useUserStore, authErrorKey, redirectError } from '@/store';
+import { STORAGE_KEYS } from '@/store/storage';
+import { isGuestSession } from '@/store/AuthListener';
+
+/** Reads and clears the note runOAuthFlow leaves before a web Google-link
+ * redirect — the store that started the flow didn't survive the page load. */
+async function consumeLinkFlag(): Promise<boolean> {
+  const flag = await AsyncStorage.getItem(STORAGE_KEYS.oauthLink);
+  if (flag !== null) await AsyncStorage.removeItem(STORAGE_KEYS.oauthLink);
+  return flag === '1';
+}
 
 /**
- * Where Google/Apple send people back after signing in (`redirectTo` in
- * userStore.signInWithOAuth). On web the browser lands here with `?code=…`
- * and we finish the PKCE exchange; on native openAuthSessionAsync already
- * exchanged the code, so a deep link that ends up here just moves on.
+ * Where Google sends people back (`redirectTo` in userStore's OAuth flow).
+ * On web the browser lands here with `?code=…` and we finish the PKCE
+ * exchange; on native openAuthSessionAsync already exchanged the code (and
+ * the auth screen navigates when it's done), so a deep link that ends up
+ * here just steps back out of the way.
  */
 export default function AuthCallbackScreen() {
-  const params = useLocalSearchParams<{ code?: string; error?: string; error_description?: string }>();
+  const params = useLocalSearchParams<{ code?: string; error?: string; error_code?: string; error_description?: string }>();
 
   useEffect(() => {
     let cancelled = false;
+    const go = (href: Parameters<typeof router.replace>[0]) => {
+      if (!cancelled) router.replace(href);
+    };
+
     (async () => {
-      const providerError = params.error_description ?? params.error;
-      if (providerError) {
-        useUserStore.setState({ authError: String(providerError) });
-        if (!cancelled) router.replace('/auth');
+      if (Platform.OS !== 'web') {
+        if (router.canGoBack()) router.back();
+        else go('/(tabs)');
         return;
       }
-      if (Platform.OS === 'web' && params.code) {
+
+      const wasLinking = await consumeLinkFlag();
+      // A guest who failed to link (or to switch accounts) must land back on
+      // the bind screen — plain /auth offers "Continue as Guest", which would
+      // abandon their current guest for yet another one. getSession() rather
+      // than the store: on this fresh page load the profile may not be in yet.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const stillGuest = wasLinking || (!!session && isGuestSession(session));
+      const failRoute = stillGuest ? '/auth?mode=upgrade&failed=google' : '/auth';
+
+      const providerError = params.error_description || params.error
+        ? { code: params.error_code, message: String(params.error_description ?? params.error) }
+        : redirectError(window.location.href);
+      if (providerError) {
+        useUserStore.setState({ authError: authErrorKey(providerError) });
+        go(failRoute);
+        return;
+      }
+
+      if (params.code) {
         const { error } = await supabase.auth.exchangeCodeForSession(String(params.code));
         if (error) {
-          useUserStore.setState({ authError: error.message });
-          if (!cancelled) router.replace('/auth');
+          useUserStore.setState({ authError: authErrorKey(error) });
+          go(failRoute);
           return;
         }
       }
-      if (!cancelled) router.replace('/(tabs)');
+
+      if (wasLinking) {
+        useUserStore.setState({ pendingWelcome: true });
+        go('/(tabs)/profile');
+      } else {
+        go('/(tabs)');
+      }
     })();
     return () => {
       cancelled = true;
