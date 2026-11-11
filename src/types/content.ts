@@ -1,12 +1,18 @@
+/** Content categories. These exact strings are stored in `series.genres` in
+ * the database and listed in the backend admin console
+ * (DramaRush-Backend/admin/src/pages/SeriesForm.tsx) — change all three
+ * together. */
 export type Genre =
+  | 'Malay Movies'
+  | 'Chinese Dramas'
+  | 'Korean Dramas'
+  | 'Movie Highlights'
+  | 'AI Drama'
+  | 'AI Animation'
+  | 'Anime & Cartoons'
+  | 'Horror & Mystery'
   | 'Romance'
-  | 'Suspense'
-  | 'Revenge'
-  | 'Comedy'
-  | 'Fantasy'
-  | 'Youth'
-  | 'Mystery'
-  | 'Workplace';
+  | 'Gaming';
 
 export type SeriesStatus = 'ongoing' | 'completed';
 

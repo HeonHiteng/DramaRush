@@ -11,7 +11,7 @@ const FIXTURE_SERIES: Series[] = [
     id: 'crimson-contract',
     title: 'Crimson Contract',
     synopsis: 'A woman fakes her death to take down the family that ruined hers.',
-    genres: ['Revenge', 'Suspense'],
+    genres: ['Horror & Mystery'],
     rating: 4.8,
     status: 'ongoing',
     language: 'English',
@@ -27,7 +27,7 @@ const FIXTURE_SERIES: Series[] = [
     id: 'ever-after-glitch',
     title: 'Ever After Glitch',
     synopsis: 'A woman is pulled into a malfunctioning fairy-tale simulation.',
-    genres: ['Fantasy', 'Romance'],
+    genres: ['Anime & Cartoons', 'Romance'],
     rating: 4.9,
     status: 'ongoing',
     language: 'English',
@@ -48,10 +48,10 @@ describe('search filtering', () => {
   });
 
   it('matches by genre', () => {
-    const results = searchSeries(FIXTURE_SERIES, 'fantasy');
+    const results = searchSeries(FIXTURE_SERIES, 'anime');
     expect(results.length).toBeGreaterThan(0);
     results.forEach((s) => {
-      expect(s.genres.some((g) => g.toLowerCase().includes('fantasy'))).toBe(true);
+      expect(s.genres.some((g) => g.toLowerCase().includes('anime'))).toBe(true);
     });
   });
 

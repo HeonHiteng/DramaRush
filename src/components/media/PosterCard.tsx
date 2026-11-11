@@ -46,7 +46,11 @@ export function PosterCard({
     <View style={{ width }}>
       <AnimatedPressable
         accessibilityRole="button"
-        accessibilityLabel={`${series.title}, ${series.genres.join(', ')}, rated ${series.rating} out of 5`}
+        accessibilityLabel={[
+          series.title,
+          ...series.genres,
+          ...(series.rating > 0 ? [`rated ${series.rating} out of 5`] : []),
+        ].join(', ')}
         onPress={() => {
           impact();
           onPress();
@@ -79,7 +83,8 @@ export function PosterCard({
           )}
 
           <View style={styles.topRightStack}>
-            {showRating && (
+            {/* New series have no rating yet (0): show nothing, not "0.0". */}
+            {showRating && series.rating > 0 && (
               <View style={styles.ratingPill}>
                 <Ionicons name="star" size={10} color={colors.gold} />
                 <Text style={styles.ratingText}>{series.rating.toFixed(1)}</Text>
@@ -172,5 +177,6 @@ const styles = StyleSheet.create({
   },
   progressWrap: { paddingHorizontal: spacing.xs, paddingBottom: spacing.xs },
   captionTitle: { ...typography.bodyMedium, color: colors.textPrimary, marginTop: spacing.xs },
-  captionSubtitle: { ...typography.caption, color: colors.textTertiary, marginTop: 1 },
+  // minHeight keeps cards in a row the same height when one has no genres.
+  captionSubtitle: { ...typography.caption, color: colors.textTertiary, marginTop: 1, minHeight: 16 },
 });

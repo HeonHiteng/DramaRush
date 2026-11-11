@@ -14,9 +14,11 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, gradients, radius, spacing, typography } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppModal } from '@/components/ui/AppModal';
+import { StackHeader } from '@/components/ui/StackHeader';
 import { useUserStore } from '@/store';
 import { BRAND } from '@/config';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -60,6 +62,7 @@ export default function AuthScreen() {
   const isLinking = mode === 'link';
   const { t } = useTranslation();
   const copy = getScreenCopy(mode, t);
+  const insets = useSafeAreaInsets();
 
   const signInAsGuest = useUserStore((s) => s.signInAsGuest);
   const signInWithOAuth = useUserStore((s) => s.signInWithOAuth);
@@ -291,6 +294,13 @@ export default function AuthScreen() {
             {copy.showLegalDisclosure && <Text style={styles.legal}>{t('auth.legalNotice')}</Text>}
           </View>
         </ScrollView>
+        {/* Only when opened from inside the app (?mode=upgrade: link or switch): after
+            signing out there's no signed-in app behind this screen to go back to. */}
+        {mode !== 'default' && (
+          <View style={[styles.backBar, { paddingTop: insets.top }]}>
+            <StackHeader title="" fallback="/(tabs)/profile" />
+          </View>
+        )}
         <OptionPickerModal
           visible={countryPickerVisible}
           options={PHONE_COUNTRIES.map((c) => ({ value: c.code, label: `${c.flag}  ${c.name}  +${c.dial}` }))}
@@ -488,6 +498,7 @@ const FIELD_HEIGHT = 58;
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  backBar: { position: 'absolute', top: 0, left: 0, right: 0, pointerEvents: 'box-none' },
   scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.xxl },
   container: { width: '100%', maxWidth: 400, alignSelf: 'center' },
   logoMark: { width: 56, height: 56, alignSelf: 'center', marginBottom: spacing.lg },

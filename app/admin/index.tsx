@@ -16,7 +16,7 @@ export default function AdminSeriesListScreen() {
 
   return (
     <Screen>
-      <StackHeader title="Content Admin" onBack={() => router.replace('/(tabs)/profile')} />
+      <StackHeader title="Content Admin" fallback="/(tabs)/profile" />
       {isLoading ? (
         <ActivityIndicator style={styles.loading} color={colors.accent} />
       ) : (

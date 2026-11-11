@@ -27,7 +27,7 @@ export default function EditSeriesScreen() {
   if (isLoading) {
     return (
       <Screen>
-        <StackHeader title="Edit Series" />
+        <StackHeader title="Edit Series" fallback="/admin" />
         <ActivityIndicator style={styles.loading} color={colors.accent} />
       </Screen>
     );
@@ -36,7 +36,7 @@ export default function EditSeriesScreen() {
   if (!series) {
     return (
       <Screen>
-        <StackHeader title="Edit Series" />
+        <StackHeader title="Edit Series" fallback="/admin" />
         <EmptyState icon="alert-circle-outline" title="Series not found" />
       </Screen>
     );
@@ -46,6 +46,7 @@ export default function EditSeriesScreen() {
     <Screen>
       <StackHeader
         title={series.title}
+        fallback="/admin"
         right={
           <Pressable onPress={() => setConfirmDeleteSeries(true)} accessibilityRole="button" accessibilityLabel="Delete series" hitSlop={8}>
             <Ionicons name="trash-outline" size={20} color={colors.danger} />

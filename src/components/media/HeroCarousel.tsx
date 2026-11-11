@@ -1,12 +1,12 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  Dimensions,
   FlatList,
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,8 +20,6 @@ import { useLibraryStore } from '@/store';
 import { getNextEpisode } from '@/utils/nextEpisode';
 import type { Episode, Series } from '@/types';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = Math.min(SCREEN_WIDTH, 480) - spacing.lg * 2;
 const CARD_HEIGHT = 400;
 
 interface HeroCarouselProps {
@@ -38,11 +36,13 @@ export function HeroCarousel({ series, episodes }: HeroCarouselProps) {
   const listRef = useRef<FlatList<Series>>(null);
   const progress = useLibraryStore((s) => s.progress);
   const { t } = useTranslation();
+  const { width: windowWidth } = useWindowDimensions();
+  const cardWidth = Math.min(windowWidth, 480) - spacing.lg * 2;
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const index = Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + spacing.md));
+    const index = Math.round(e.nativeEvent.contentOffset.x / (cardWidth + spacing.md));
     setActiveIndex(index);
-  }, []);
+  }, [cardWidth]);
 
   if (series.length === 0) return null;
 
@@ -53,7 +53,7 @@ export function HeroCarousel({ series, episodes }: HeroCarouselProps) {
         data={series}
         horizontal
         pagingEnabled={false}
-        snapToInterval={CARD_WIDTH + spacing.md}
+        snapToInterval={cardWidth + spacing.md}
         decelerationRate="fast"
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item: Series) => item.id}
@@ -61,7 +61,7 @@ export function HeroCarousel({ series, episodes }: HeroCarouselProps) {
         onScroll={onScroll}
         scrollEventThrottle={16}
         renderItem={({ item }: { item: Series }) => (
-          <View style={styles.card}>
+          <View style={[styles.card, { width: cardWidth }]}>
             <LinearGradient
               colors={[item.bannerColorFrom, item.bannerColorTo]}
               start={{ x: 0, y: 0 }}
@@ -73,7 +73,9 @@ export function HeroCarousel({ series, episodes }: HeroCarouselProps) {
               ) : (
                 <PosterArt series={item} size="hero" />
               )}
-              <LinearGradient colors={gradients.scrimBottom} style={StyleSheet.absoluteFill} />
+              {/* Darkens the lower half fully: real posters carry their own
+                  title there, which would otherwise show through ours. */}
+              <LinearGradient colors={gradients.scrimBottom} locations={[0.3, 0.7]} style={StyleSheet.absoluteFill} />
               <View style={styles.badgeRow}>
                 {item.genres.slice(0, 2).map((g) => (
                   <View key={g} style={styles.genrePill}>
@@ -123,7 +125,7 @@ export function HeroCarousel({ series, episodes }: HeroCarouselProps) {
 const styles = StyleSheet.create({
   container: { marginBottom: spacing.xl },
   listContent: { paddingHorizontal: spacing.lg },
-  card: { width: CARD_WIDTH, height: CARD_HEIGHT, marginRight: spacing.md },
+  card: { height: CARD_HEIGHT, marginRight: spacing.md },
   gradient: {
     flex: 1,
     borderRadius: radius.xxl,
@@ -146,7 +148,7 @@ const styles = StyleSheet.create({
   // of being squeezed to zero width (its label vanished entirely at 320px
   // before this — RN doesn't ellipsize a Pressable's content, it just clips).
   ctaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
-  cta: { paddingHorizontal: spacing.lg },
+  cta: { flexGrow: 1 },
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',

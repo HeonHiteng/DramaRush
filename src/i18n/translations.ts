@@ -147,6 +147,7 @@ export const translations = {
     'common.watchNow': 'Watch Now',
     'common.moreInfo': 'More Info',
     'common.ok': 'OK',
+    'common.seeAll': 'See all',
 
     // Language settings
     'language.title': 'Language',
@@ -158,7 +159,6 @@ export const translations = {
     'home.newReleases': 'New Releases',
     'home.recommendedForYou': 'Recommended for You',
     'home.freeToWatch': 'Free to Watch',
-    'home.completedSeries': 'Completed Series',
     'home.membershipBannerEyebrow': '{brand} MEMBERSHIP',
     'home.membershipBannerTitle': 'Unlock every episode, ad-free',
     'home.membershipBannerSubtitle': 'Plus monthly bonus coins & early access',
@@ -253,6 +253,8 @@ export const translations = {
     // Series detail
     'series.headerTitle': 'Series',
     'series.notFound': 'Series not found',
+    'series.comingSoon': 'Coming Soon',
+    'series.noEpisodes': 'Episodes are on the way',
     'series.completed': 'Completed',
     'series.ongoing': 'Ongoing',
     'series.episodesCount': '{count} episodes',
@@ -516,6 +518,7 @@ export const translations = {
     'common.watchNow': '立即观看',
     'common.moreInfo': '更多信息',
     'common.ok': '好的',
+    'common.seeAll': '查看全部',
 
     'language.title': '语言',
     'language.hint': '设置整个应用的界面语言。',
@@ -525,7 +528,6 @@ export const translations = {
     'home.newReleases': '最新上线',
     'home.recommendedForYou': '为您推荐',
     'home.freeToWatch': '免费观看',
-    'home.completedSeries': '已完结剧集',
     'home.membershipBannerEyebrow': '{brand} 会员',
     'home.membershipBannerTitle': '解锁全部剧集，无广告畅享',
     'home.membershipBannerSubtitle': '还可获得每月赠送金币和抢先看特权',
@@ -613,6 +615,8 @@ export const translations = {
 
     'series.headerTitle': '剧集',
     'series.notFound': '未找到该剧集',
+    'series.comingSoon': '即将上线',
+    'series.noEpisodes': '剧集即将上线',
     'series.completed': '已完结',
     'series.ongoing': '连载中',
     'series.episodesCount': '{count} 集',
@@ -868,6 +872,7 @@ export const translations = {
     'common.watchNow': 'Tonton Sekarang',
     'common.moreInfo': 'Maklumat Lanjut',
     'common.ok': 'OK',
+    'common.seeAll': 'Lihat semua',
 
     'language.title': 'Bahasa',
     'language.hint': 'Menetapkan bahasa antara muka untuk keseluruhan aplikasi.',
@@ -877,7 +882,6 @@ export const translations = {
     'home.newReleases': 'Keluaran Terbaru',
     'home.recommendedForYou': 'Disyorkan untuk Anda',
     'home.freeToWatch': 'Percuma untuk Ditonton',
-    'home.completedSeries': 'Siri Tamat',
     'home.membershipBannerEyebrow': 'KEAHLIAN {brand}',
     'home.membershipBannerTitle': 'Buka semua episod, tanpa iklan',
     'home.membershipBannerSubtitle': 'Serta syiling bonus bulanan & akses awal',
@@ -966,6 +970,8 @@ export const translations = {
 
     'series.headerTitle': 'Siri',
     'series.notFound': 'Siri tidak dijumpai',
+    'series.comingSoon': 'Akan Datang',
+    'series.noEpisodes': 'Episod akan datang',
     'series.completed': 'Tamat',
     'series.ongoing': 'Sedang Berjalan',
     'series.episodesCount': '{count} episod',

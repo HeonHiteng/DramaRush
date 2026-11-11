@@ -22,10 +22,6 @@ export function getFreeToWatch(series: Series[], episodes: Episode[]): Series[] 
   return series.filter((s) => freeSeriesIds.has(s.id));
 }
 
-export function getCompletedSeries(series: Series[]): Series[] {
-  return series.filter((s) => s.status === 'completed');
-}
-
 export function getHeroSeries(series: Series[]): Series[] {
   return byPopularityDesc(series).slice(0, 5);
 }
@@ -58,8 +54,9 @@ export interface HomeRails {
   newReleases: Series[];
   recommended: Series[];
   free: Series[];
-  completed: Series[];
-  /** Only genres with at least `minRailSize` series, in GENRES order. */
+  /** The promoted category row (default "AI Drama"), shown with the main rows. */
+  featured: { genre: Genre; series: Series[] };
+  /** Other categories with at least `minRailSize` series, in GENRES order (featured excluded). */
   genres: { genre: Genre; series: Series[] }[];
 }
 
@@ -71,7 +68,12 @@ export interface HomeRailsOptions {
   railSize?: number;
   /** A rail with fewer items than this is not shown (the hero only needs one). */
   minRailSize?: number;
+  /** Category promoted into the main rows. */
+  featuredGenre?: Genre;
 }
+
+/** The category Home promotes right after "Free to Watch". */
+export const FEATURED_GENRE: Genre = 'AI Drama';
 
 /** Local calendar day as YYYY-MM-DD. */
 export function homeDateKey(date: Date = new Date()): string {
@@ -108,8 +110,9 @@ export function seededShuffle<T>(list: T[], seed: string): T[] {
  * Splits the catalogue over the Home rails so no series shows up in two rails.
  *
  * Allocation order: hero (most popular) -> Trending Now (next by popularity) -> New Releases
- * (`isNew`, by popularity) -> Recommended (daily seeded shuffle of what is left) -> Free To Watch
- * -> Completed -> one rail per genre (grouped by each series' first genre). Every rail only takes
+ * (`isNew`, by popularity) -> featured category (default AI Drama; allocated here so the earlier
+ * catch-all rails can't empty it) -> Recommended (daily seeded shuffle of what is left) -> Free To
+ * Watch -> one rail per other category (grouped by each series' first category). Every rail only takes
  * series that match it. A rail that would get fewer than `minRailSize` items first takes other
  * unshown matching series, then (except genre rails) reuses matching series from earlier rails; if it is still short,
  * or has no unshown series of its own at all, it is returned empty (genre rails are left out) so
@@ -121,6 +124,7 @@ export function buildHomeRails(series: Series[], episodes: Episode[], opts: Home
   const railSize = opts.railSize ?? 10;
   const minRail = opts.minRailSize ?? 3;
   const dateKey = typeof opts.date === 'string' ? opts.date : homeDateKey(opts.date);
+  const featuredGenre = opts.featuredGenre ?? FEATURED_GENRE;
 
   // Distinct ids, most popular first; id breaks ties so the order never depends on input order.
   const seen = new Set<string>();
@@ -160,6 +164,13 @@ export function buildHomeRails(series: Series[], episodes: Episode[], opts: Home
     sorted.filter((s) => s.isNew),
     railSize,
   );
+  const featured = {
+    genre: featuredGenre,
+    series: fill(
+      sorted.filter((s) => s.genres.includes(featuredGenre)),
+      railSize,
+    ),
+  };
   const recommended = fill(seededShuffle(sorted, dateKey), railSize);
 
   const freeIds = new Set(episodes.filter((e) => e.access === 'free').map((e) => e.seriesId));
@@ -167,13 +178,10 @@ export function buildHomeRails(series: Series[], episodes: Episode[], opts: Home
     sorted.filter((s) => freeIds.has(s.id)),
     railSize,
   );
-  const completed = fill(
-    sorted.filter((s) => s.status === 'completed'),
-    railSize,
-  );
 
   const genres: HomeRails['genres'] = [];
   for (const genre of GENRES) {
+    if (genre === featuredGenre) continue;
     const firstGenre = sorted.filter((s) => s.genres.find((g) => GENRES.includes(g)) === genre);
     const anyGenre = sorted.filter((s) => s.genres.includes(genre));
     // Genre rails only top up with unshown series: with a big catalogue most titles are already
@@ -182,5 +190,5 @@ export function buildHomeRails(series: Series[], episodes: Episode[], opts: Home
     if (list.length > 0) genres.push({ genre, series: list });
   }
 
-  return { hero, trending, newReleases, recommended, free, completed, genres };
+  return { hero, trending, newReleases, recommended, free, featured, genres };
 }

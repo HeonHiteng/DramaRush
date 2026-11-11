@@ -14,7 +14,7 @@ export default function LegalScreen() {
 
   return (
     <Screen>
-      <StackHeader title={isPrivacy ? t('profile.privacyPolicy') : t('profile.termsOfService')} />
+      <StackHeader title={isPrivacy ? t('profile.privacyPolicy') : t('profile.termsOfService')} fallback="/(tabs)/profile" />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.notice}>{t('legal.prototypeNotice')}</Text>
         <Text style={styles.paragraph}>

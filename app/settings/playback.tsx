@@ -15,7 +15,7 @@ export default function PlaybackSettingsScreen() {
 
   return (
     <Screen>
-      <StackHeader title={t('profile.playbackSettings')} />
+      <StackHeader title={t('profile.playbackSettings')} fallback="/(tabs)/profile" />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.group}>
           <ProfileMenuItem

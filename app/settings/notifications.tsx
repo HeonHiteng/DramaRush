@@ -13,7 +13,7 @@ export default function NotificationsScreen() {
 
   return (
     <Screen>
-      <StackHeader title={t('profile.notificationSettings')} />
+      <StackHeader title={t('profile.notificationSettings')} fallback="/(tabs)/profile" />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.group}>
           <ProfileMenuItem

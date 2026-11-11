@@ -208,10 +208,12 @@ function PaywallHook({ seriesRating, episode, totalEpisodes }: { seriesRating: n
 
   return (
     <View style={styles.hookRow}>
-      <View style={styles.ratingChip}>
-        <Ionicons name="star" size={11} color={colors.gold} />
-        <Text style={styles.ratingChipText}>{seriesRating.toFixed(1)}</Text>
-      </View>
+      {seriesRating > 0 && (
+        <View style={styles.ratingChip}>
+          <Ionicons name="star" size={11} color={colors.gold} />
+          <Text style={styles.ratingChipText}>{seriesRating.toFixed(1)}</Text>
+        </View>
+      )}
       {remaining > 0 && <Text style={styles.hookText}>{t('paywall.episodesAhead', { count: remaining })}</Text>}
     </View>
   );

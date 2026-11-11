@@ -19,7 +19,7 @@ export default function HelpScreen() {
 
   return (
     <Screen>
-      <StackHeader title={t('profile.helpSupport')} />
+      <StackHeader title={t('profile.helpSupport')} fallback="/(tabs)/profile" />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.intro}>{t('help.intro', { brand: BRAND.name })}</Text>
         {FAQ_KEYS.map((item) => (

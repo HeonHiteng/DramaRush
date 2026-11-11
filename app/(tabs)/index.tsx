@@ -13,6 +13,11 @@ import { buildHomeRails, homeDateKey } from '@/data';
 import { useSeries, useEpisodes } from '@/services/content';
 import { useContinueWatching } from '@/hooks/useContinueWatching';
 import { useTranslation } from '@/i18n/useTranslation';
+import type { Genre } from '@/types';
+
+function openCategory(genre: Genre) {
+  router.navigate({ pathname: '/discover', params: { genre, at: String(Date.now()) } });
+}
 
 export default function HomeScreen() {
   const seriesQuery = useSeries();
@@ -102,10 +107,14 @@ export default function HomeScreen() {
         <SeriesRail title={t('home.newReleases')} series={rails.newReleases} />
         <SeriesRail title={t('home.recommendedForYou')} series={rails.recommended} />
         <SeriesRail title={t('home.freeToWatch')} series={rails.free} />
-        <SeriesRail title={t('home.completedSeries')} series={rails.completed} />
+        <SeriesRail
+          title={rails.featured.genre}
+          series={rails.featured.series}
+          onSeeAll={() => openCategory(rails.featured.genre)}
+        />
 
         {rails.genres.map(({ genre, series: list }) => (
-          <SeriesRail key={genre} title={`${genre} Picks`} series={list} />
+          <SeriesRail key={genre} title={genre} series={list} onSeeAll={() => openCategory(genre)} />
         ))}
 
         <View style={{ height: spacing.xxl }} />
