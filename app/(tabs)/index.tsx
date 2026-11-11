@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,16 +9,7 @@ import { PosterRailSkeleton, SkeletonBlock } from '@/components/ui/LoadingSkelet
 import { LinkAccountBanner } from '@/components/ui/LinkAccountBanner';
 import { HeroCarousel, PosterCard, SeriesRail } from '@/components/media';
 import { BRAND } from '@/config';
-import {
-  getCompletedSeries,
-  getFreeToWatch,
-  getHeroSeries,
-  getNewReleases,
-  getRecommendedForYou,
-  getSeriesByGenre,
-  getTrendingNow,
-  GENRES,
-} from '@/data';
+import { buildHomeRails, homeDateKey } from '@/data';
 import { useSeries, useEpisodes } from '@/services/content';
 import { useContinueWatching } from '@/hooks/useContinueWatching';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -30,8 +21,13 @@ export default function HomeScreen() {
   const { t } = useTranslation();
 
   const loading = seriesQuery.isLoading || episodesQuery.isLoading;
-  const series = seriesQuery.data ?? [];
   const episodes = episodesQuery.data ?? [];
+  // Each series shows in at most one rail; "Recommended" reshuffles once a day.
+  const today = homeDateKey();
+  const rails = useMemo(
+    () => buildHomeRails(seriesQuery.data ?? [], episodesQuery.data ?? [], { date: today }),
+    [seriesQuery.data, episodesQuery.data, today],
+  );
 
   const onRefresh = () => {
     seriesQuery.refetch();
@@ -76,7 +72,7 @@ export default function HomeScreen() {
         {/* Guests only; renders nothing otherwise. */}
         <LinkAccountBanner />
 
-        <HeroCarousel series={getHeroSeries(series)} episodes={episodes} />
+        <HeroCarousel series={rails.hero} episodes={episodes} />
 
         {continueWatching.length > 0 && (
           <View style={styles.section}>
@@ -102,17 +98,15 @@ export default function HomeScreen() {
 
         <MembershipBanner />
 
-        <SeriesRail title={t('home.trendingNow')} series={getTrendingNow(series)} ranked />
-        <SeriesRail title={t('home.newReleases')} series={getNewReleases(series)} />
-        <SeriesRail title={t('home.recommendedForYou')} series={getRecommendedForYou(series)} />
-        <SeriesRail title={t('home.freeToWatch')} series={getFreeToWatch(series, episodes)} />
-        <SeriesRail title={t('home.completedSeries')} series={getCompletedSeries(series)} />
+        <SeriesRail title={t('home.trendingNow')} series={rails.trending} ranked />
+        <SeriesRail title={t('home.newReleases')} series={rails.newReleases} />
+        <SeriesRail title={t('home.recommendedForYou')} series={rails.recommended} />
+        <SeriesRail title={t('home.freeToWatch')} series={rails.free} />
+        <SeriesRail title={t('home.completedSeries')} series={rails.completed} />
 
-        {GENRES.map((genre) => {
-          const list = getSeriesByGenre(series, genre);
-          if (list.length === 0) return null;
-          return <SeriesRail key={genre} title={`${genre} Picks`} series={list} />;
-        })}
+        {rails.genres.map(({ genre, series: list }) => (
+          <SeriesRail key={genre} title={`${genre} Picks`} series={list} />
+        ))}
 
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
