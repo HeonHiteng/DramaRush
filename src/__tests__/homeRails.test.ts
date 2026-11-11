@@ -26,13 +26,13 @@ function freeEpisode(seriesId: string): Episode {
 }
 
 function allRails(r: HomeRails): Series[][] {
-  return [r.hero, r.trending, r.newReleases, r.recommended, r.free, r.featured.series, ...r.genres.map((g) => g.series)];
+  return [r.lead.series, r.hero, r.trending, r.newReleases, r.recommended, r.free, r.featured.series, ...r.genres.map((g) => g.series)];
 }
 
 const GENRE_CYCLE: Genre[] = [
   'Romance',
   'Horror & Mystery',
-  'Malay Movies',
+  'Malaysia Movies',
   'Chinese Dramas',
   'Korean Dramas',
   'AI Drama',
@@ -70,11 +70,22 @@ describe('buildHomeRails', () => {
     expect(rails.free).toHaveLength(10);
   });
 
-  it('puts the 5 most popular distinct series in the hero, in order', () => {
+  it('puts the 5 most popular distinct series outside the lead row in the hero, in order', () => {
     const { series, episodes } = liveLikeCatalogue();
     const duplicated = [...series, series[0], series[1]];
     const rails = buildHomeRails(duplicated, episodes, { date: '2026-11-11' });
+    // s2 is Malaysia Movies (GENRE_CYCLE[2]), so it sits in the lead row instead.
+    expect(rails.hero.map((s) => s.id)).toEqual(['s0', 's1', 's3', 's4', 's5']);
+  });
+
+  it('gives every lead-category title to the lead row, ahead of the hero', () => {
+    const films = Array.from({ length: 7 }, (_, i) => makeSeries(`film${i}`, 300 - i, { genres: ['Malaysia Movies'] }));
+    const others = Array.from({ length: 20 }, (_, i) => makeSeries(`s${i}`, 100 - i));
+    const rails = buildHomeRails([...films, ...others], [], { date: '2026-11-11' });
+    expect(rails.lead.genre).toBe('Malaysia Movies');
+    expect(rails.lead.series.map((s) => s.id)).toEqual(films.map((s) => s.id));
     expect(rails.hero.map((s) => s.id)).toEqual(['s0', 's1', 's2', 's3', 's4']);
+    expect(rails.genres.map((g) => g.genre)).not.toContain('Malaysia Movies');
   });
 
   it('only puts matching series in the filtered rails', () => {

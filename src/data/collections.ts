@@ -49,6 +49,8 @@ export function getSeriesByGenre(series: Series[], genre: string): Series[] {
 // ---------------------------------------------------------------------------
 
 export interface HomeRails {
+  /** The lead category row (default "Malaysia Movies"), shown right under the hero. */
+  lead: { genre: Genre; series: Series[] };
   hero: Series[];
   trending: Series[];
   newReleases: Series[];
@@ -70,7 +72,12 @@ export interface HomeRailsOptions {
   minRailSize?: number;
   /** Category promoted into the main rows. */
   featuredGenre?: Genre;
+  /** Category given its own row right under the hero; it is allocated before everything else. */
+  leadGenre?: Genre;
 }
+
+/** The category Home shows right under the hero, ahead of every other row. */
+export const LEAD_GENRE: Genre = 'Malaysia Movies';
 
 /** The category Home promotes right after "Free to Watch". */
 export const FEATURED_GENRE: Genre = 'AI Drama';
@@ -109,7 +116,8 @@ export function seededShuffle<T>(list: T[], seed: string): T[] {
 /**
  * Splits the catalogue over the Home rails so no series shows up in two rails.
  *
- * Allocation order: hero (most popular) -> Trending Now (next by popularity) -> New Releases
+ * Allocation order: lead category row (default Malaysia Movies, all of its titles up to `railSize`)
+ * -> hero (most popular of the rest) -> Trending Now (next by popularity) -> New Releases
  * (`isNew`, by popularity) -> featured category (default AI Drama; allocated here so the earlier
  * catch-all rails can't empty it) -> Recommended (daily seeded shuffle of what is left) -> Free To
  * Watch -> one rail per other category (grouped by each series' first category). Every rail only takes
@@ -125,6 +133,7 @@ export function buildHomeRails(series: Series[], episodes: Episode[], opts: Home
   const minRail = opts.minRailSize ?? 3;
   const dateKey = typeof opts.date === 'string' ? opts.date : homeDateKey(opts.date);
   const featuredGenre = opts.featuredGenre ?? FEATURED_GENRE;
+  const leadGenre = opts.leadGenre ?? LEAD_GENRE;
 
   // Distinct ids, most popular first; id breaks ties so the order never depends on input order.
   const seen = new Set<string>();
@@ -156,7 +165,15 @@ export function buildHomeRails(series: Series[], episodes: Episode[], opts: Home
     return picked;
   };
 
-  const hero = sorted.slice(0, heroSize);
+  const lead = {
+    genre: leadGenre,
+    series: fill(
+      sorted.filter((s) => s.genres.includes(leadGenre)),
+      railSize,
+    ),
+  };
+
+  const hero = sorted.filter((s) => !used.has(s.id)).slice(0, heroSize);
   hero.forEach((s) => used.add(s.id));
 
   const trending = fill(sorted, trendingSize);
@@ -181,7 +198,7 @@ export function buildHomeRails(series: Series[], episodes: Episode[], opts: Home
 
   const genres: HomeRails['genres'] = [];
   for (const genre of GENRES) {
-    if (genre === featuredGenre) continue;
+    if (genre === featuredGenre || genre === leadGenre) continue;
     const firstGenre = sorted.filter((s) => s.genres.find((g) => GENRES.includes(g)) === genre);
     const anyGenre = sorted.filter((s) => s.genres.includes(genre));
     // Genre rails only top up with unshown series: with a big catalogue most titles are already
@@ -190,5 +207,5 @@ export function buildHomeRails(series: Series[], episodes: Episode[], opts: Home
     if (list.length > 0) genres.push({ genre, series: list });
   }
 
-  return { hero, trending, newReleases, recommended, free, featured, genres };
+  return { lead, hero, trending, newReleases, recommended, free, featured, genres };
 }

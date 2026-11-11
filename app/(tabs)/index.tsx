@@ -101,6 +101,8 @@ export default function HomeScreen() {
           </View>
         )}
 
+        <SeriesRail title={rails.lead.genre} series={rails.lead.series} onSeeAll={() => openCategory(rails.lead.genre)} />
+
         <MembershipBanner />
 
         <SeriesRail title={t('home.trendingNow')} series={rails.trending} ranked />
