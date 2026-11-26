@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors, radius, spacing, typography } from '@/theme';
@@ -103,8 +102,6 @@ export default function HomeScreen() {
 
         <SeriesRail title={rails.lead.genre} series={rails.lead.series} onSeeAll={() => openCategory(rails.lead.genre)} />
 
-        <MembershipBanner />
-
         <SeriesRail title={t('home.trendingNow')} series={rails.trending} ranked />
         <SeriesRail title={t('home.newReleases')} series={rails.newReleases} />
         <SeriesRail title={t('home.recommendedForYou')} series={rails.recommended} />
@@ -134,32 +131,6 @@ function BrandMark() {
   );
 }
 
-function MembershipBanner() {
-  const { t } = useTranslation();
-  return (
-    <Pressable
-      onPress={() => router.push('/subscription')}
-      accessibilityRole="button"
-      accessibilityLabel={`View ${BRAND.name} membership plans`}
-      style={styles.bannerWrap}
-    >
-      <LinearGradient
-        colors={['#3A2A12', '#5E4318', '#7A5A1E']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.banner}
-      >
-        <View style={styles.bannerTextWrap}>
-          <Text style={styles.bannerEyebrow}>{t('home.membershipBannerEyebrow', { brand: BRAND.name.toUpperCase() })}</Text>
-          <Text style={styles.bannerTitle}>{t('home.membershipBannerTitle')}</Text>
-          <Text style={styles.bannerSubtitle}>{t('home.membershipBannerSubtitle')}</Text>
-        </View>
-        <Ionicons name="diamond" size={40} color="rgba(255,255,255,0.85)" />
-      </LinearGradient>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   scrollContent: { paddingBottom: spacing.xl },
   headerRow: {
@@ -184,17 +155,5 @@ const styles = StyleSheet.create({
   section: { marginBottom: spacing.xl },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
   railContent: { paddingHorizontal: spacing.lg },
-  bannerWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.xl },
-  banner: {
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  bannerTextWrap: { flex: 1, paddingRight: spacing.md },
-  bannerEyebrow: { ...typography.micro, color: colors.gold, marginBottom: 4 },
-  bannerTitle: { ...typography.h3, color: colors.white },
-  bannerSubtitle: { ...typography.caption, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
   heroSkeleton: { marginHorizontal: spacing.lg, marginBottom: spacing.xl },
 });

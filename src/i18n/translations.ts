@@ -159,9 +159,6 @@ export const translations = {
     'home.newReleases': 'New Releases',
     'home.recommendedForYou': 'Recommended for You',
     'home.freeToWatch': 'Free to Watch',
-    'home.membershipBannerEyebrow': '{brand} MEMBERSHIP',
-    'home.membershipBannerTitle': 'Unlock every episode, ad-free',
-    'home.membershipBannerSubtitle': 'Plus monthly bonus coins & early access',
 
     // Discover
     'discover.title': 'Discover',
@@ -528,9 +525,6 @@ export const translations = {
     'home.newReleases': '最新上线',
     'home.recommendedForYou': '为您推荐',
     'home.freeToWatch': '免费观看',
-    'home.membershipBannerEyebrow': '{brand} 会员',
-    'home.membershipBannerTitle': '解锁全部剧集，无广告畅享',
-    'home.membershipBannerSubtitle': '还可获得每月赠送金币和抢先看特权',
 
     'discover.title': '发现',
     'discover.allGenres': '全部类型',
@@ -882,9 +876,6 @@ export const translations = {
     'home.newReleases': 'Keluaran Terbaru',
     'home.recommendedForYou': 'Disyorkan untuk Anda',
     'home.freeToWatch': 'Percuma untuk Ditonton',
-    'home.membershipBannerEyebrow': 'KEAHLIAN {brand}',
-    'home.membershipBannerTitle': 'Buka semua episod, tanpa iklan',
-    'home.membershipBannerSubtitle': 'Serta syiling bonus bulanan & akses awal',
 
     'discover.title': 'Terokai',
     'discover.allGenres': 'Semua Genre',
