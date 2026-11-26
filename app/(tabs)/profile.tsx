@@ -3,9 +3,10 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, Vi
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import Constants from 'expo-constants';
 import { colors, gradients, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
-import { ProfileMenuItem } from '@/components/ui/ProfileMenuItem';
+import { MenuGroup, ProfileMenuItem } from '@/components/ui/ProfileMenuItem';
 import { CoinBadge } from '@/components/ui/CoinBadge';
 import { PremiumBadge } from '@/components/ui/PremiumBadge';
 import { AppButton } from '@/components/ui/AppButton';
@@ -18,11 +19,12 @@ import {
   useWalletStore,
   useSubscriptionStore,
   useLibraryStore,
+  useSettingsStore,
   resetPrototype,
   deleteAccount,
 } from '@/store';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { TranslationKey } from '@/i18n/translations';
+import { LANGUAGES, type TranslationKey } from '@/i18n/translations';
 import type { AuthProvider } from '@/types';
 import { formatPhone } from '@/utils/phone';
 
@@ -42,6 +44,10 @@ const PROVIDER_ICON: Record<AuthProvider, React.ComponentProps<typeof Ionicons>[
   apple: 'logo-apple',
 };
 
+const MEMBERSHIP_TILE = ['#3A2A12', '#5E4318'] as const;
+
+const APP_VERSION = Constants.expoConfig?.version ?? null;
+
 /** The label the backend writes on the one-time link bonus transaction. */
 const WELCOME_BONUS_LABEL = 'Welcome bonus';
 
@@ -58,6 +64,7 @@ export default function ProfileScreen() {
   const unlockAll = useLibraryStore((s) => s.unlockAll);
   const favoriteSeriesIds = useLibraryStore((s) => s.favoriteSeriesIds);
   const { data: allSeries } = useSeries();
+  const language = useSettingsStore((s) => s.language);
   const { t } = useTranslation();
 
   // In the order they were added (newest first), like Netflix's My List.
@@ -164,47 +171,51 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        <View style={styles.profileHero}>
+        <View style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initial}</Text>
           </View>
-          <View style={styles.nameRow}>
-            <Text style={styles.name} numberOfLines={1}>
-              {displayName}
-            </Text>
-            {user && (
-              <Pressable
-                onPress={() => setEditingName(true)}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel={t('profile.editName')}
-              >
-                <Ionicons name="create-outline" size={18} color={colors.textTertiary} />
-              </Pressable>
-            )}
-          </View>
-          {contact ? <Text style={styles.email}>{contact}</Text> : null}
-          {user && (
+          <View style={styles.profileInfo}>
+            <View style={styles.nameRow}>
+              <Text style={styles.name} numberOfLines={1}>
+                {displayName}
+              </Text>
+              {user && (
+                <Pressable
+                  onPress={() => setEditingName(true)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('profile.editName')}
+                >
+                  <Ionicons name="create-outline" size={18} color={colors.textTertiary} />
+                </Pressable>
+              )}
+            </View>
+            {contact ? (
+              <Text style={styles.email} numberOfLines={1}>
+                {contact}
+              </Text>
+            ) : null}
             <View style={styles.metaRow}>
-              <View style={styles.metaChip}>
-                <Ionicons name={PROVIDER_ICON[user.provider]} size={12} color={colors.textTertiary} />
-                <Text style={styles.metaText}>{t(PROVIDER_LABEL[user.provider])}</Text>
-              </View>
-              {user.publicCode ? (
+              {subscription.isActive ? (
+                <PremiumBadge compact />
+              ) : (
+                <View style={styles.freeBadge}>
+                  <Text style={styles.freeBadgeText}>{t('profile.freeMember')}</Text>
+                </View>
+              )}
+              {user && (
+                <View style={styles.metaChip}>
+                  <Ionicons name={PROVIDER_ICON[user.provider]} size={12} color={colors.textTertiary} />
+                  <Text style={styles.metaText}>{t(PROVIDER_LABEL[user.provider])}</Text>
+                </View>
+              )}
+              {user?.publicCode ? (
                 <View style={styles.metaChip}>
                   <Text style={styles.metaText}>{t('profile.memberId', { id: user.publicCode })}</Text>
                 </View>
               ) : null}
             </View>
-          )}
-          <View style={styles.badgeRow}>
-            {subscription.isActive ? (
-              <PremiumBadge compact />
-            ) : (
-              <View style={styles.freeBadge}>
-                <Text style={styles.freeBadgeText}>{t('profile.freeMember')}</Text>
-              </View>
-            )}
           </View>
         </View>
 
@@ -227,15 +238,41 @@ export default function ProfileScreen() {
           </Pressable>
         )}
 
-        <Pressable onPress={() => router.push('/wallet')} accessibilityRole="button" accessibilityLabel={t('profile.openWallet')}>
-          <LinearGradient colors={gradients.premiumBanner} style={styles.coinCard}>
-            <View>
-              <Text style={styles.coinLabel}>{t('profile.coinBalance')}</Text>
-              <CoinBadge amount={balance} size="lg" />
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textPrimary} />
-          </LinearGradient>
-        </Pressable>
+        <View style={styles.tileStack}>
+          <Pressable onPress={() => router.push('/wallet')} accessibilityRole="button" accessibilityLabel={t('profile.openWallet')}>
+            <LinearGradient colors={gradients.premiumBanner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.tile}>
+              <View style={styles.tileBody}>
+                <Text style={styles.tileLabel}>{t('profile.coins')}</Text>
+                <CoinBadge amount={balance} size="lg" />
+              </View>
+              <View style={styles.tileAction}>
+                <Text style={styles.tileActionText}>{t('profile.topUp')}</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.textPrimary} />
+              </View>
+            </LinearGradient>
+          </Pressable>
+          <Pressable onPress={() => router.push('/subscription')} accessibilityRole="button" accessibilityLabel={t('profile.membership')}>
+            <LinearGradient colors={MEMBERSHIP_TILE} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.tile}>
+              <View style={styles.tileBody}>
+                <Text style={styles.tileLabel}>{t('profile.membership')}</Text>
+                <View style={styles.tilePlanRow}>
+                  <Ionicons name="diamond" size={18} color={colors.gold} />
+                  <Text style={styles.tilePlan} numberOfLines={1}>
+                    {subscription.isActive
+                      ? subscription.planId === 'annual'
+                        ? t('profile.annual')
+                        : t('profile.monthly')
+                      : t('profile.freePlan')}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.tileAction}>
+                <Text style={styles.tileActionText}>{subscription.isActive ? t('profile.manage') : t('profile.join')}</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.textPrimary} />
+              </View>
+            </LinearGradient>
+          </Pressable>
+        </View>
 
         {myList.length > 0 && (
           // Bleeds past this screen's side padding: SeriesRail insets itself.
@@ -244,60 +281,63 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <View style={styles.menuGroup}>
-          <ProfileMenuItem icon="time-outline" label={t('profile.watchHistory')} onPress={() => router.push('/library')} />
-          <ProfileMenuItem icon="wallet-outline" label={t('profile.wallet')} onPress={() => router.push('/wallet')} />
-          <ProfileMenuItem
-            icon="diamond-outline"
-            label={t('profile.subscription')}
-            value={
-              subscription.isActive
-                ? subscription.planId === 'annual'
-                  ? t('profile.annual')
-                  : t('profile.monthly')
-                : t('profile.none')
-            }
-            onPress={() => router.push('/subscription')}
-          />
+        <View style={styles.section}>
+          <MenuGroup>
+            <ProfileMenuItem icon="time-outline" label={t('profile.watchHistory')} onPress={() => router.push('/library')} />
+            <ProfileMenuItem icon="wallet-outline" label={t('profile.wallet')} onPress={() => router.push('/wallet')} />
+          </MenuGroup>
         </View>
 
         <Text style={styles.groupLabel}>{t('profile.settings')}</Text>
-        <View style={styles.menuGroup}>
-          <ProfileMenuItem icon="notifications-outline" label={t('profile.notificationSettings')} onPress={() => router.push('/settings/notifications')} />
-          <ProfileMenuItem icon="play-circle-outline" label={t('profile.playbackSettings')} onPress={() => router.push('/settings/playback')} />
-          <ProfileMenuItem icon="language-outline" label={t('profile.language')} onPress={() => router.push('/settings/language')} />
+        <View style={styles.section}>
+          <MenuGroup>
+            <ProfileMenuItem icon="notifications-outline" label={t('profile.notificationSettings')} onPress={() => router.push('/settings/notifications')} />
+            <ProfileMenuItem icon="play-circle-outline" label={t('profile.playbackSettings')} onPress={() => router.push('/settings/playback')} />
+            <ProfileMenuItem
+              icon="language-outline"
+              label={t('profile.language')}
+              value={LANGUAGES.find((l) => l.code === language)?.label}
+              onPress={() => router.push('/settings/language')}
+            />
+          </MenuGroup>
         </View>
 
         <Text style={styles.groupLabel}>{t('profile.support')}</Text>
-        <View style={styles.menuGroup}>
-          <ProfileMenuItem icon="help-circle-outline" label={t('profile.helpSupport')} onPress={() => router.push('/settings/help')} />
-          <ProfileMenuItem icon="document-text-outline" label={t('profile.termsOfService')} onPress={() => router.push('/settings/legal?type=terms')} />
-          <ProfileMenuItem icon="shield-checkmark-outline" label={t('profile.privacyPolicy')} onPress={() => router.push('/settings/legal?type=privacy')} />
+        <View style={styles.section}>
+          <MenuGroup>
+            <ProfileMenuItem icon="help-circle-outline" label={t('profile.helpSupport')} onPress={() => router.push('/settings/help')} />
+            <ProfileMenuItem icon="document-text-outline" label={t('profile.termsOfService')} onPress={() => router.push('/settings/legal?type=terms')} />
+            <ProfileMenuItem icon="shield-checkmark-outline" label={t('profile.privacyPolicy')} onPress={() => router.push('/settings/legal?type=privacy')} />
+          </MenuGroup>
         </View>
 
         {user?.isAdmin && (
           <>
             <Text style={styles.groupLabel}>{t('profile.admin')}</Text>
-            <View style={styles.menuGroup}>
-              <ProfileMenuItem icon="film-outline" label={t('profile.contentAdmin')} onPress={() => router.push('/admin')} />
+            <View style={styles.section}>
+              <MenuGroup>
+                <ProfileMenuItem icon="film-outline" label={t('profile.contentAdmin')} onPress={() => router.push('/admin')} />
+              </MenuGroup>
             </View>
           </>
         )}
 
         {user && (
-          <View style={styles.menuGroup}>
-            {!isGuest && <ProfileMenuItem icon="log-out-outline" label={t('profile.signOut')} onPress={confirmSignOut} />}
-            <ProfileMenuItem
-              icon="person-remove-outline"
-              label={isGuest ? t('profile.deleteGuestData') : t('profile.deleteAccount')}
-              destructive
-              onPress={() => setDeleteStep(1)}
-            />
-            {/* reset_my_data is refused once simulated payments are off, so
-                this is a developer tool, not something to show customers. */}
-            {showDevTools && (
-              <ProfileMenuItem icon="trash-outline" label={t('profile.resetPrototype')} destructive onPress={() => setConfirmVisible(true)} />
-            )}
+          <View style={styles.section}>
+            <MenuGroup>
+              {!isGuest && <ProfileMenuItem icon="log-out-outline" label={t('profile.signOut')} onPress={confirmSignOut} />}
+              <ProfileMenuItem
+                icon="person-remove-outline"
+                label={isGuest ? t('profile.deleteGuestData') : t('profile.deleteAccount')}
+                destructive
+                onPress={() => setDeleteStep(1)}
+              />
+              {/* reset_my_data is refused once simulated payments are off, so
+                  this is a developer tool, not something to show customers. */}
+              {showDevTools && (
+                <ProfileMenuItem icon="trash-outline" label={t('profile.resetPrototype')} destructive onPress={() => setConfirmVisible(true)} />
+              )}
+            </MenuGroup>
           </View>
         )}
 
@@ -333,6 +373,11 @@ export default function ProfileScreen() {
         )}
 
         <Text style={styles.footerNote}>{t('profile.footerNote', { brand: BRAND.name })}</Text>
+        {APP_VERSION ? (
+          <Text style={styles.versionNote}>
+            {BRAND.name} · {t('profile.version', { version: APP_VERSION })}
+          </Text>
+        ) : null}
       </ScrollView>
 
       <EditNameModal visible={editingName} currentName={displayName} onClose={() => setEditingName(false)} />
@@ -469,21 +514,31 @@ const styles = StyleSheet.create({
   header: { ...typography.h1, color: colors.textPrimary },
   prototypeBadge: { backgroundColor: colors.info, paddingHorizontal: spacing.xs, paddingVertical: 3, borderRadius: radius.sm },
   prototypeBadgeText: { ...typography.micro, color: colors.white },
-  profileHero: { alignItems: 'center', marginBottom: spacing.xl },
-  // Netflix's profile tile: a large rounded square, not a circle.
-  avatar: {
-    width: 88,
-    height: 88,
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  // Netflix's profile tile: a rounded square, not a circle.
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
   },
-  avatarText: { ...typography.display, color: colors.white },
+  avatarText: { ...typography.h1, color: colors.white },
+  profileInfo: { flex: 1, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, maxWidth: '100%' },
   name: { ...typography.h2, color: colors.textPrimary, flexShrink: 1 },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.xs, marginTop: spacing.xs },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xxs, marginTop: spacing.xs },
   metaChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -509,7 +564,6 @@ const styles = StyleSheet.create({
   editError: { ...typography.caption, color: colors.danger, marginTop: spacing.xs },
   editActions: { width: '100%', gap: spacing.sm, marginTop: spacing.md },
   email: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
-  badgeRow: { flexDirection: 'row', marginTop: spacing.xs },
   railBleed: { marginHorizontal: -spacing.lg },
   freeBadge: { backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.xs, paddingVertical: 3, borderRadius: radius.sm },
   freeBadgeText: { ...typography.micro, color: colors.textTertiary },
@@ -532,24 +586,30 @@ const styles = StyleSheet.create({
   upgradeTextWrap: { flex: 1 },
   upgradeTitle: { ...typography.bodyMedium, color: colors.white },
   upgradeSubtitle: { ...typography.caption, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  coinCard: {
+  tileStack: { gap: spacing.sm, marginBottom: spacing.lg },
+  tile: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
     borderRadius: radius.lg,
     padding: spacing.md,
-    marginBottom: spacing.lg,
   },
-  coinLabel: { ...typography.caption, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
-  menuGroup: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.lg,
-    paddingVertical: spacing.xxs,
+  tileBody: { flex: 1, minWidth: 0, gap: spacing.xxs },
+  tileLabel: { ...typography.caption, color: 'rgba(255,255,255,0.7)' },
+  tilePlanRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 36 },
+  tilePlan: { ...typography.h3, color: colors.white, flexShrink: 1 },
+  tileAction: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  tileActionText: { ...typography.bodyMedium, color: colors.textPrimary },
+  section: { marginBottom: spacing.lg },
+  groupLabel: {
+    ...typography.micro,
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: spacing.xs,
+    marginLeft: spacing.xs,
   },
-  groupLabel: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.xs, marginLeft: spacing.xs },
   demoSection: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -575,6 +635,7 @@ const styles = StyleSheet.create({
   demoButtonText: { ...typography.caption, color: colors.textSecondary },
   demoButtonTextDanger: { color: colors.danger },
   footerNote: { ...typography.caption, color: colors.textDisabled, textAlign: 'center', marginTop: spacing.md },
+  versionNote: { ...typography.micro, color: colors.textDisabled, textAlign: 'center', marginTop: spacing.xs },
   confirmIconWrap: {
     width: 52,
     height: 52,

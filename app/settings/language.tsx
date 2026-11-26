@@ -26,8 +26,12 @@ export default function LanguageSettingsScreen() {
               accessibilityRole="button"
               accessibilityState={{ selected: language === lang.code }}
             >
-              <Text style={styles.rowText}>{lang.label}</Text>
-              {language === lang.code && <Ionicons name="checkmark" size={18} color={colors.accent} />}
+              <Text style={[styles.rowText, language === lang.code && styles.rowTextActive]}>{lang.label}</Text>
+              <Ionicons
+                name={language === lang.code ? 'checkmark-circle' : 'ellipse-outline'}
+                size={20}
+                color={language === lang.code ? colors.accent : colors.textDisabled}
+              />
             </Pressable>
           ))}
         </View>
@@ -41,7 +45,8 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg },
   group: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.md },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong },
   rowText: { ...typography.body, color: colors.textPrimary },
-  hint: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.md },
+  rowTextActive: { ...typography.bodyMedium },
+  hint: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.sm, marginHorizontal: spacing.xs },
 });

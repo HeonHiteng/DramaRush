@@ -1,9 +1,9 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '@/theme';
+import { ScrollView, StyleSheet, Text } from 'react-native';
+import { colors, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { StackHeader } from '@/components/ui/StackHeader';
-import { ProfileMenuItem } from '@/components/ui/ProfileMenuItem';
+import { MenuGroup, ProfileMenuItem } from '@/components/ui/ProfileMenuItem';
 import { useSettingsStore } from '@/store';
 import { useTranslation } from '@/i18n/useTranslation';
 
@@ -15,13 +15,13 @@ export default function NotificationsScreen() {
     <Screen>
       <StackHeader title={t('profile.notificationSettings')} fallback="/(tabs)/profile" />
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.group}>
+        <MenuGroup>
           <ProfileMenuItem
             icon="notifications-outline"
             label={t('settings.pushNotifications')}
             toggle={{ value: s.notificationsEnabled, onChange: s.setNotificationsEnabled }}
           />
-        </View>
+        </MenuGroup>
         <Text style={styles.hint}>{t('settings.notificationsHint')}</Text>
       </ScrollView>
     </Screen>
@@ -30,6 +30,5 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg },
-  group: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
-  hint: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.md },
+  hint: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.sm, marginHorizontal: spacing.xs },
 });

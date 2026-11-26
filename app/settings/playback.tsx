@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { StackHeader } from '@/components/ui/StackHeader';
-import { ProfileMenuItem } from '@/components/ui/ProfileMenuItem';
+import { MenuGroup, ProfileMenuItem } from '@/components/ui/ProfileMenuItem';
 import { useSettingsStore, type PlaybackQuality } from '@/store/settingsStore';
 import { useTranslation } from '@/i18n/useTranslation';
 
@@ -17,7 +17,7 @@ export default function PlaybackSettingsScreen() {
     <Screen>
       <StackHeader title={t('profile.playbackSettings')} fallback="/(tabs)/profile" />
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.group}>
+        <MenuGroup>
           <ProfileMenuItem
             icon="play-skip-forward-outline"
             label={t('settings.autoplayNextEpisode')}
@@ -33,7 +33,7 @@ export default function PlaybackSettingsScreen() {
             label={t('settings.reduceMotion')}
             toggle={{ value: s.reducedMotion, onChange: s.setReducedMotion }}
           />
-        </View>
+        </MenuGroup>
 
         <Text style={styles.sectionLabel}>{t('settings.streamingQuality')}</Text>
         <View style={styles.qualityRow}>
@@ -58,9 +58,17 @@ export default function PlaybackSettingsScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg },
-  group: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.xl },
-  sectionLabel: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.sm },
-  qualityRow: { flexDirection: 'row', gap: spacing.xs },
+  sectionLabel: {
+    ...typography.micro,
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.xs,
+  },
+  // Wraps on narrow phones instead of pushing 1080p off screen.
+  qualityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   qualityChip: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,

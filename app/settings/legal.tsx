@@ -1,7 +1,8 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import { colors, spacing, typography } from '@/theme';
+import { colors, radius, spacing, typography } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
 import { StackHeader } from '@/components/ui/StackHeader';
 import { BRAND } from '@/config';
@@ -16,7 +17,10 @@ export default function LegalScreen() {
     <Screen>
       <StackHeader title={isPrivacy ? t('profile.privacyPolicy') : t('profile.termsOfService')} fallback="/(tabs)/profile" />
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.notice}>{t('legal.prototypeNotice')}</Text>
+        <View style={styles.notice}>
+          <Ionicons name="information-circle" size={18} color={colors.gold} />
+          <Text style={styles.noticeText}>{t('legal.prototypeNotice')}</Text>
+        </View>
         <Text style={styles.paragraph}>
           {t(isPrivacy ? 'legal.privacyBody' : 'legal.termsBody', { brand: BRAND.name })}
         </Text>
@@ -34,10 +38,15 @@ export default function LegalScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxxl },
   notice: {
-    ...typography.caption,
-    color: colors.gold,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs,
+    backgroundColor: colors.goldMuted,
+    borderRadius: radius.md,
+    padding: spacing.sm,
     marginBottom: spacing.lg,
   },
+  noticeText: { ...typography.caption, color: colors.gold, flex: 1, lineHeight: 18 },
   heading: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.lg, marginBottom: spacing.xs },
   paragraph: { ...typography.body, color: colors.textSecondary, lineHeight: 22 },
 });
