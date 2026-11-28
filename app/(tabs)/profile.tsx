@@ -27,6 +27,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { LANGUAGES, type TranslationKey } from '@/i18n/translations';
 import type { AuthProvider } from '@/types';
 import { formatPhone } from '@/utils/phone';
+import { formatWatchTime, useViewingStats } from '@/hooks/useViewingStats';
 
 const PROVIDER_LABEL: Record<AuthProvider, TranslationKey> = {
   guest: 'profile.via.guest',
@@ -281,9 +282,10 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        <ViewingCard />
+
         <View style={styles.section}>
           <MenuGroup>
-            <ProfileMenuItem icon="time-outline" label={t('profile.watchHistory')} onPress={() => router.push('/library')} />
             <ProfileMenuItem icon="wallet-outline" label={t('profile.wallet')} onPress={() => router.push('/wallet')} />
           </MenuGroup>
         </View>
@@ -449,6 +451,54 @@ export default function ProfileScreen() {
   );
 }
 
+/** Watch time plus Watching / Finished / History counts, each opening that
+ * list on the My Viewing screen. Separate pressables, not one big button,
+ * so web doesn't nest <button>s. */
+function ViewingCard() {
+  const stats = useViewingStats();
+  const { t } = useTranslation();
+  const cells: { tab: string; label: TranslationKey; count: number }[] = [
+    { tab: 'watching', label: 'viewing.watching', count: stats.watching.length },
+    { tab: 'finished', label: 'viewing.finished', count: stats.finished.length },
+    { tab: 'history', label: 'viewing.history', count: stats.all.length },
+  ];
+
+  return (
+    <View style={styles.viewingCard}>
+      <Pressable
+        onPress={() => router.push('/viewing')}
+        style={styles.viewingHeader}
+        accessibilityRole="button"
+        accessibilityLabel={t('viewing.title')}
+      >
+        <View style={styles.viewingIcon}>
+          <Ionicons name="time" size={16} color={colors.accent} />
+        </View>
+        <View style={styles.viewingHeaderText}>
+          <Text style={styles.viewingTitle}>{t('viewing.watchTime')}</Text>
+          <Text style={styles.viewingSub}>{t('viewing.thisMonth', { time: formatWatchTime(stats.monthSec, t) })}</Text>
+        </View>
+        <Text style={styles.viewingTotal}>{formatWatchTime(stats.totalSec, t)}</Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+      </Pressable>
+      <View style={styles.viewingCells}>
+        {cells.map((cell, i) => (
+          <Pressable
+            key={cell.tab}
+            onPress={() => router.push({ pathname: '/viewing', params: { tab: cell.tab } })}
+            style={[styles.viewingCell, i > 0 && styles.viewingCellBorder]}
+            accessibilityRole="button"
+            accessibilityLabel={`${t(cell.label)}: ${t('viewing.seriesCount', { count: cell.count })}`}
+          >
+            <Text style={styles.viewingCount}>{cell.count}</Text>
+            <Text style={styles.viewingCellLabel}>{t(cell.label)}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function DemoButton({ label, onPress, destructive }: { label: string; onPress: () => void; destructive?: boolean }) {
   return (
     <Pressable
@@ -602,6 +652,35 @@ const styles = StyleSheet.create({
   tileAction: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   tileActionText: { ...typography.bodyMedium, color: colors.textPrimary },
   section: { marginBottom: spacing.lg },
+  viewingCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.lg,
+  },
+  viewingHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md },
+  viewingIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accentMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewingHeaderText: { flex: 1, minWidth: 0 },
+  viewingTitle: { ...typography.bodyMedium, color: colors.textPrimary },
+  viewingSub: { ...typography.caption, color: colors.textTertiary, marginTop: 1 },
+  viewingTotal: { ...typography.h3, color: colors.textPrimary },
+  viewingCells: {
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderStrong,
+  },
+  viewingCell: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm },
+  viewingCellBorder: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderStrong },
+  viewingCount: { ...typography.h2, color: colors.textPrimary },
+  viewingCellLabel: { ...typography.caption, color: colors.textTertiary, marginTop: 1 },
   groupLabel: {
     ...typography.micro,
     color: colors.textTertiary,
